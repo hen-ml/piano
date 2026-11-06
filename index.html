@@ -442,8 +442,16 @@ const noteName = m => NAMES[((m % 12) + 12) % 12] + (Math.floor(m / 12) - 1);
 
 let LOW = 48, HIGH = 84;         // visible midi range (C3..C6), rebuilt on resize
 const keyEls = new Map();        // midi -> element
-let showLabels = true;
-let violinMode = false;          // label keys/notes as violin fingering instead of note names
+// Settings survive reloads. Learn mode is deliberately NOT restored at load:
+// the app opens as a full-height piano, and playFrom() turns the falling notes
+// on when a song starts (unless the player has switched them off).
+const PREFS_KEY = 'piano_prefs';
+let prefs = {};
+try { prefs = JSON.parse(localStorage.getItem(PREFS_KEY)) || {}; } catch (e) {}
+function savePrefs() { try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch (e) {} }
+
+let showLabels = prefs.labels !== false;   // labels on unless switched off
+let violinMode = prefs.violin === true;    // label keys/notes as violin fingering instead of note names
 let kbOctave = 4;                // base octave for computer-keyboard mapping
 
 // ---------------------------------------------------------------------------
@@ -677,20 +685,28 @@ const sustainBtn = document.getElementById('sustainBtn');
 sustainBtn.addEventListener('click', () => { ensureAudio(); setSustain(!sustain); });
 document.getElementById('violinBtn').addEventListener('click', () => {
     violinMode = !violinMode;
+    prefs.violin = violinMode;
     document.getElementById('violinBtn').classList.toggle('on', violinMode);
     // fingering you cannot see is no help, so turning violin mode on turns labels on
     if (violinMode && !showLabels) {
         showLabels = true;
+        prefs.labels = true;
         document.getElementById('labelBtn').classList.add('on');
     }
+    savePrefs();
     applyLabels();
 });
 document.getElementById('labelBtn').addEventListener('click', () => {
     showLabels = !showLabels;
+    prefs.labels = showLabels;
+    savePrefs();
     document.getElementById('labelBtn').classList.toggle('on', showLabels);
     applyLabels();
 });
-document.getElementById('labelBtn').classList.add('on');
+// reflect the saved settings on the toolbar at startup
+document.getElementById('violinBtn').classList.toggle('on', violinMode);
+document.getElementById('labelBtn').classList.toggle('on', showLabels);
+applyLabels();
 document.getElementById('vol').addEventListener('input', e => {
     volume = e.target.value / 100;
     if (master) master.gain.setTargetAtTime(volume, ac.currentTime, 0.02);
@@ -976,6 +992,12 @@ function playFrom(id, offset) {
         songLoadedId = id;
     }
     songPlaying = id; songPaused = false;
+    // Falling notes are the point of the practice view: turn them on with the
+    // first song, unless the player has explicitly switched them off.
+    if (!learnMode && prefs.learn !== false) {
+        learnAuto = prefs.learn === undefined;
+        setLearnMode(true, false);
+    }
     seekTo(offset || 0);
     if (!songTick) songTick = setInterval(songTickFn, 20);
     showTransport(s.name); startClockUI(); startFall(); renderSongs();
@@ -1010,6 +1032,8 @@ function stopSong() {
     silenceLive();
     songPlaying = null; songPaused = false; songLoadedId = null;
     songIdx = 0;
+    // if the song switched falling notes on, put the full-height piano back
+    if (learnAuto && prefs.learn === undefined) { learnAuto = false; setLearnMode(false, false); }
     stopClockUI(); hideTransport(); stopFall(); renderSongs();
 }
 
@@ -1042,6 +1066,7 @@ T('tTrUp').addEventListener('click', () => setSongTranspose(songTranspose + 1));
 
 // ---- falling notes (Synthesia-style) ----
 let learnMode = false, fallRAF = 0;
+let learnAuto = false;           // turned on by a song, not by the player
 const fallCanvas = T('fall');
 const keyRects = new Map();     // midi -> {x, w, black} relative to #stage
 function computeKeyRects() {
@@ -1102,13 +1127,25 @@ function drawFall() {
         }
     }
 }
-document.getElementById('learnBtn').addEventListener('click', () => {
-    learnMode = !learnMode;
+function setLearnMode(on, remember) {
+    learnMode = !!on;
     document.getElementById('learnBtn').classList.toggle('on', learnMode);
     stage.classList.toggle('learn', learnMode);
-    if (learnMode) { fallCanvas.classList.add('on'); requestAnimationFrame(computeKeyRects); startFall(); }
-    else { fallCanvas.classList.remove('on'); stopFall(); }
-});
+    if (learnMode) {
+        fallCanvas.classList.add('on');
+        requestAnimationFrame(computeKeyRects);
+        startFall();
+    } else {
+        fallCanvas.classList.remove('on');
+        stopFall();
+    }
+    if (remember) {
+        learnAuto = false;               // the player's choice wins from now on
+        prefs.learn = learnMode;
+        savePrefs();
+    }
+}
+document.getElementById('learnBtn').addEventListener('click', () => setLearnMode(!learnMode, true));
 // =============================================================================
 //  MIDI UPLOAD — a tiny Standard-MIDI-File parser, all client-side
 // =============================================================================
@@ -1381,6 +1418,7 @@ window.PIANO = {
     toggleViolin: () => document.getElementById('violinBtn').click(),
     restrictedShown: () => showRestricted,
     violinFinger, violin: () => violinMode,
+    learn: () => learnMode, labels: () => showLabels,
     _ctx: () => ac, _comp: () => comp,
     _events: () => songEvents, _songTime: songTimeNow,
     _live: () => [...songLive.entries()].map(([p, v]) => [p, { ...v }]),

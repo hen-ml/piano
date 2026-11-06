@@ -11,9 +11,12 @@ A browser practice tool for piano and violin. Open a MIDI file, slow it to 60%, 
 - **Your own MIDI files.** Standard `.mid` files play locally in the tab — nothing is uploaded anywhere.
 - **Tempo and loop.** 40–150% speed, seek anywhere, loop a range until the passage holds together.
 - **USB MIDI keyboard.** Web MIDI in Chrome and Edge; no driver, no install.
+- **Computer keyboard.** A–L play the white keys, W–U the sharps, Z/X shift octaves, and Space sustains — no hardware needed.
 - **Violin mode.** Labels every key and falling note by string and finger, first position, colour-coded per string.
 - **Works offline.** Install it to your home screen; the service worker keeps it running without a network.
 - **Record and export.** Capture what you played and download it as a `.mid`.
+
+Falling notes switch on when a song starts. Labels, violin mode and your preference for falling notes are remembered on the device.
 
 ## Violin mode
 
