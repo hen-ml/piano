@@ -1,7 +1,7 @@
 {
-  "name": "Grand Piano",
+  "name": "Piano Practice",
   "short_name": "Piano",
-  "description": "A polyphonic web piano — play chords with multi-touch or your keyboard.",
+  "description": "Slow a MIDI file down, loop the bars you keep missing, and follow the notes onto the keys. Piano and violin.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
