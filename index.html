@@ -442,16 +442,16 @@ const noteName = m => NAMES[((m % 12) + 12) % 12] + (Math.floor(m / 12) - 1);
 
 let LOW = 48, HIGH = 84;         // visible midi range (C3..C6), rebuilt on resize
 const keyEls = new Map();        // midi -> element
-// Settings survive reloads. Learn mode is deliberately NOT restored at load:
-// the app opens as a full-height piano, and playFrom() turns the falling notes
-// on when a song starts (unless the player has switched them off).
+// Settings survive reloads. Learn mode and violin mode are both ON by
+// default: the app opens in the practice view with falling notes and violin
+// fingering, and a player who switches either off has that choice remembered.
 const PREFS_KEY = 'piano_prefs';
 let prefs = {};
 try { prefs = JSON.parse(localStorage.getItem(PREFS_KEY)) || {}; } catch (e) {}
 function savePrefs() { try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch (e) {} }
 
 let showLabels = prefs.labels !== false;   // labels on unless switched off
-let violinMode = prefs.violin === true;    // label keys/notes as violin fingering instead of note names
+let violinMode = prefs.violin !== false;   // on by default — label keys/notes as violin fingering instead of note names
 let kbOctave = 4;                // base octave for computer-keyboard mapping
 
 // ---------------------------------------------------------------------------
@@ -703,6 +703,9 @@ document.getElementById('labelBtn').addEventListener('click', () => {
     document.getElementById('labelBtn').classList.toggle('on', showLabels);
     applyLabels();
 });
+// violin mode is on by default and needs labels to be any use — mirror the
+// click handler's coupling so a saved "labels off" can't strand it
+if (violinMode && !showLabels) { showLabels = true; prefs.labels = true; savePrefs(); }
 // reflect the saved settings on the toolbar at startup
 document.getElementById('violinBtn').classList.toggle('on', violinMode);
 document.getElementById('labelBtn').classList.toggle('on', showLabels);
@@ -992,8 +995,8 @@ function playFrom(id, offset) {
         songLoadedId = id;
     }
     songPlaying = id; songPaused = false;
-    // Falling notes are the point of the practice view: turn them on with the
-    // first song, unless the player has explicitly switched them off.
+    // Learn mode is on by default; this only re-lights it if a song stop put
+    // it out (learnAuto). An explicit off (prefs.learn === false) always wins.
     if (!learnMode && prefs.learn !== false) {
         learnAuto = prefs.learn === undefined;
         setLearnMode(true, false);
@@ -1146,6 +1149,8 @@ function setLearnMode(on, remember) {
     }
 }
 document.getElementById('learnBtn').addEventListener('click', () => setLearnMode(!learnMode, true));
+// learn mode is on by default — open straight into the practice view
+if (prefs.learn !== false) setLearnMode(true, false);
 // =============================================================================
 //  MIDI UPLOAD — a tiny Standard-MIDI-File parser, all client-side
 // =============================================================================
