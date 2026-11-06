@@ -12,17 +12,17 @@ A browser practice tool for piano and violin. Open a MIDI or MusicXML file, slow
 - **Tempo and loop.** 40–150% speed, seek anywhere, loop a range until the passage holds together.
 - **USB MIDI keyboard.** Web MIDI in Chrome and Edge; no driver, no install.
 - **Computer keyboard.** A–L play the white keys, W–U the sharps, Z/X shift octaves, and Space sustains — no hardware needed.
-- **Violin mode.** Labels every key and falling note by string and finger, first position, colour-coded per string.
+- **Violin mode.** Labels every key and falling note by string and finger, first position, colour-coded per string. On by default — hit 🎻 to switch it off.
 - **Works offline.** Install it to your home screen; the service worker keeps it running without a network.
 - **Record and export.** Capture what you played and download it as a `.mid`.
 
-Falling notes switch on when a song starts. Labels, violin mode and your preference for falling notes are remembered on the device.
+Falling notes and violin fingering are both on by default. Labels, violin mode and your preference for falling notes are remembered on the device.
 
 MusicXML import handles chords, ties, voices, tempo changes and sustain pedal. Repeats and endings are not expanded yet — the score plays through once.
 
 ## Violin mode
 
-The piano is the accompaniment, but the notes are still piano notes. Hit 🎻 and every key and falling bar is labelled the way a violinist thinks: **G1**, **D3**, **A0** — string, then finger. Notes outside first position stay unlabelled rather than inventing a shift that isn't there.
+The piano is the accompaniment, but the notes are still piano notes. Violin mode is on by default — every key and falling bar is labelled the way a violinist thinks: **G1**, **D3**, **A0** — string, then finger (hit 🎻 to switch it off). Notes outside first position stay unlabelled rather than inventing a shift that isn't there.
 
 ![Violin mode: falling notes coloured by string with labels like G1, D1 and A0](docs/hero-violin.png)
 
