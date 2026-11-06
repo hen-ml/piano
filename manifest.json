@@ -1,7 +1,7 @@
 {
   "name": "Piano Practice",
   "short_name": "Piano",
-  "description": "Slow a MIDI file down, loop the bars you keep missing, and follow the notes onto the keys. Piano and violin.",
+  "description": "Slow a MIDI or MusicXML file down, loop the bars you keep missing, and follow the notes onto the keys. Piano and violin.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",

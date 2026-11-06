@@ -1,6 +1,6 @@
 # Piano Practice
 
-A browser practice tool for piano and violin. Open a MIDI file, slow it to 60%, loop the four bars that keep falling apart, and watch the notes fall onto the keys.
+A browser practice tool for piano and violin. Open a MIDI or MusicXML file, slow it to 60%, loop the four bars that keep falling apart, and watch the notes fall onto the keys.
 
 **[Open the app →](https://hen-ml.github.io/piano/)**
 
@@ -8,7 +8,7 @@ A browser practice tool for piano and violin. Open a MIDI file, slow it to 60%, 
 
 ## What it does
 
-- **Your own MIDI files.** Standard `.mid` files play locally in the tab — nothing is uploaded anywhere.
+- **Your own MIDI and MusicXML files.** Standard `.mid`, `.musicxml` and compressed `.mxl` files play locally in the tab — nothing is uploaded anywhere.
 - **Tempo and loop.** 40–150% speed, seek anywhere, loop a range until the passage holds together.
 - **USB MIDI keyboard.** Web MIDI in Chrome and Edge; no driver, no install.
 - **Computer keyboard.** A–L play the white keys, W–U the sharps, Z/X shift octaves, and Space sustains — no hardware needed.
@@ -17,6 +17,8 @@ A browser practice tool for piano and violin. Open a MIDI file, slow it to 60%, 
 - **Record and export.** Capture what you played and download it as a `.mid`.
 
 Falling notes switch on when a song starts. Labels, violin mode and your preference for falling notes are remembered on the device.
+
+MusicXML import handles chords, ties, voices, tempo changes and sustain pedal. Repeats and endings are not expanded yet — the score plays through once.
 
 ## Violin mode
 
@@ -38,7 +40,7 @@ Then open <http://localhost:8000/>. Opening `index.html` directly from disk most
 
 ## How it's built
 
-One HTML file with inline CSS and JavaScript, plus a manifest and a service worker. Audio is synthesized with the Web Audio API; MIDI parsing is hand-rolled. No frameworks, no bundler, no network calls.
+One HTML file with inline CSS and JavaScript, plus a manifest and a service worker. Audio is synthesized with the Web Audio API; MIDI and MusicXML parsing are hand-rolled. No frameworks, no bundler, no network calls.
 
 ## Built-in pieces
 

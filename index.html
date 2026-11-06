@@ -7,11 +7,11 @@
          landscape orientation where the OS allows it -->
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#0a0a0c">
-    <meta name="description" content="A free browser practice tool for piano and violin: open a MIDI file, slow it down, loop any bars, and follow falling notes onto the keys. No install, no account.">
+    <meta name="description" content="A free browser practice tool for piano and violin: open a MIDI or MusicXML file, slow it down, loop any bars, and follow falling notes onto the keys. No install, no account.">
     <link rel="canonical" href="https://hen-ml.github.io/piano/">
     <meta property="og:type" content="website">
     <meta property="og:title" content="Piano Practice — slow it down, loop it, play along">
-    <meta property="og:description" content="Open a MIDI file, slow it to 60%, loop any bars, and watch the notes fall onto the keys. Free, in the browser.">
+    <meta property="og:description" content="Open a MIDI or MusicXML file, slow it to 60%, loop any bars, and watch the notes fall onto the keys. Free, in the browser.">
     <meta property="og:url" content="https://hen-ml.github.io/piano/">
     <meta property="og:image" content="https://hen-ml.github.io/piano/docs/hero.png">
     <meta name="twitter:card" content="summary_large_image">
@@ -280,8 +280,8 @@
         <div class="sub2">Tap to auto-play — then play along on the keys.</div>
         <div id="songsList"></div>
         <div class="sub2" id="songsNote" style="display:none">© = still under copyright, listed because this device is unlocked. Open with <b>?songs=public</b> to hide them again.</div>
-        <div class="btn" id="uploadBtn">⬆ Upload a MIDI…</div>
-        <input id="midiInput" type="file" accept=".mid,.midi,audio/midi,audio/x-midi" multiple style="display:none">
+        <div class="btn" id="uploadBtn">⬆ Import MIDI / MusicXML…</div>
+        <input id="midiInput" type="file" accept=".mid,.midi,.musicxml,.xml,.mxl,audio/midi,audio/x-midi,application/vnd.recordare.musicxml+xml,application/vnd.recordare.musicxml,application/xml,text/xml" multiple style="display:none">
         <div class="btn" id="songsClose">Close</div>
     </div>
 </div>
@@ -1213,6 +1213,306 @@ function parseMIDI(buf) {
     return out;
 }
 
+// =============================================================================
+//  MUSICXML UPLOAD — score-partwise → the same event format as parseMIDI
+// =============================================================================
+// Uncompressed .musicxml/.xml and compressed .mxl (ZIP + inflate). Reads
+// pitches, rests, chords, voices, ties, tempo changes and sustain pedal.
+// Repeats/endings are not expanded: the score plays through once.
+
+const XML_STEPS = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+const XML_BEAT_Q = { whole: 4, half: 2, quarter: 1, eighth: 0.5, '16th': 0.25, '32nd': 0.125, '64th': 0.0625 };
+
+function xmlChild(el, name) {
+    if (!el) return null;
+    for (let n = el.firstChild; n; n = n.nextSibling)
+        if (n.nodeType === 1 && (n.localName === name || n.nodeName === name)) return n;
+    return null;
+}
+function xmlChildren(el, name) {
+    const out = [];
+    if (!el) return out;
+    for (let n = el.firstChild; n; n = n.nextSibling)
+        if (n.nodeType === 1 && (n.localName === name || n.nodeName === name)) out.push(n);
+    return out;
+}
+function xmlElements(el) {
+    const out = [];
+    for (let n = el.firstChild; n; n = n.nextSibling)
+        if (n.nodeType === 1) out.push(n);
+    return out;
+}
+function xmlText(el) { return el ? (el.textContent || '').trim() : ''; }
+
+function parseMusicXML(text) {
+    const doc = new DOMParser().parseFromString(text, 'application/xml');
+    if (doc.getElementsByTagName('parsererror')[0]) throw new Error('invalid XML');
+    const root = doc.documentElement;
+    if (!root) throw new Error('empty file');
+    const kind = root.localName || root.nodeName;
+    if (kind === 'score-timewise') throw new Error('score-timewise MusicXML is not supported — export score-partwise');
+    if (kind !== 'score-partwise') throw new Error('not a MusicXML score');
+
+    let title = xmlText(xmlChild(root, 'movement-title'));
+    if (!title) title = xmlText(xmlChild(xmlChild(root, 'work'), 'work-title'));
+    let composer = '';
+    for (const c of xmlChildren(xmlChild(root, 'identification'), 'creator'))
+        if (c.getAttribute('type') === 'composer') { composer = xmlText(c); break; }
+
+    const parts = xmlChildren(root, 'part');
+    if (!parts.length) throw new Error('no parts in the score');
+
+    const tempoMap = new Map();   // quarter-note position -> BPM
+    const pedalQ = [];            // [quarter-note position, down]
+    const rawNotes = [];          // { start, dur, midi, voice, tieStart, tieStop, part }
+
+    for (let pi = 0; pi < parts.length; pi++) {
+        let divisions = 1;
+        let cursor = 0;           // quarter notes from the start of the part
+        let lastStart = 0;
+
+        for (const measure of xmlChildren(parts[pi], 'measure')) {
+            const measureStart = cursor;
+            let maxCursor = cursor;
+
+            for (const el of xmlElements(measure)) {
+                const name = el.localName || el.nodeName;
+
+                if (name === 'attributes') {
+                    const d = +xmlText(xmlChild(el, 'divisions'));
+                    if (d > 0) divisions = d;
+                } else if (name === 'direction' || name === 'sound') {
+                    let bpm = 0;
+                    if (name === 'sound') {
+                        if (el.getAttribute('tempo')) bpm = +el.getAttribute('tempo');
+                    } else {
+                        const snd = xmlChild(el, 'sound');
+                        if (snd && snd.getAttribute('tempo')) bpm = +snd.getAttribute('tempo');
+                        for (const dt of xmlChildren(el, 'direction-type')) {
+                            const met = xmlChild(dt, 'metronome');
+                            if (met && !bpm) {
+                                const pm = +xmlText(xmlChild(met, 'per-minute'));
+                                const bu = xmlText(xmlChild(met, 'beat-unit')) || 'quarter';
+                                const q = (XML_BEAT_Q[bu] || 1) * (xmlChild(met, 'beat-unit-dot') ? 1.5 : 1);
+                                if (pm > 0) bpm = pm * q;
+                            }
+                            const ped = xmlChild(dt, 'pedal');
+                            if (ped) {
+                                const t = ped.getAttribute('type');
+                                if (t === 'start' || t === 'change' || t === 'resume') pedalQ.push([cursor, true]);
+                                else if (t === 'stop') pedalQ.push([cursor, false]);
+                            }
+                        }
+                    }
+                    if (bpm > 0) tempoMap.set(cursor, bpm);
+                } else if (name === 'backup' || name === 'forward') {
+                    const d = +xmlText(xmlChild(el, 'duration')) || 0;
+                    cursor += (name === 'backup' ? -1 : 1) * d / divisions;
+                    maxCursor = Math.max(maxCursor, cursor);
+                } else if (name === 'note') {
+                    if (xmlChild(el, 'grace')) continue;   // no time, no sound
+                    const rest = !!xmlChild(el, 'rest');
+                    const cue = !!xmlChild(el, 'cue');
+                    const chord = !!xmlChild(el, 'chord');
+                    const durQ = (+xmlText(xmlChild(el, 'duration')) || 0) / divisions;
+                    const start = chord ? lastStart : cursor;
+                    if (!chord) { cursor += durQ; lastStart = start; }
+                    maxCursor = Math.max(maxCursor, cursor);
+                    if (rest || cue) continue;
+
+                    const pitch = xmlChild(el, 'pitch');
+                    if (!pitch) continue;
+                    const step = xmlText(xmlChild(pitch, 'step')).toUpperCase();
+                    const alter = +xmlText(xmlChild(pitch, 'alter')) || 0;
+                    const octave = +xmlText(xmlChild(pitch, 'octave'));
+                    const semis = XML_STEPS[step];
+                    if (semis == null || !isFinite(octave)) continue;
+                    const midi = (octave + 1) * 12 + semis + Math.round(alter);
+                    if (midi < 0 || midi > 127) continue;
+
+                    let tieStart = false, tieStop = false;
+                    for (const tie of xmlChildren(el, 'tie')) {
+                        const t = tie.getAttribute('type');
+                        if (t === 'start') tieStart = true;
+                        else if (t === 'stop') tieStop = true;
+                    }
+                    for (const tied of xmlChildren(xmlChild(el, 'notations'), 'tied')) {
+                        const t = tied.getAttribute('type');
+                        if (t === 'start') tieStart = true;
+                        else if (t === 'stop') tieStop = true;
+                    }
+                    rawNotes.push({
+                        start, dur: durQ, midi,
+                        voice: xmlText(xmlChild(el, 'voice')) || '1',
+                        tieStart, tieStop, part: pi,
+                    });
+                }
+            }
+            // The next measure starts where the longest voice in this one ended.
+            cursor = maxCursor;
+        }
+    }
+
+    // Tempo map → milliseconds. A tempo change inside a note splits its span.
+    const tempos = [...tempoMap.entries()].sort((a, b) => a[0] - b[0]);
+    if (!tempos.length || tempos[0][0] > 0) tempos.unshift([0, 120]);
+    function qToMs(q) {
+        let ms = 0, last = 0, bpm = tempos[0][1];
+        for (const [p, b] of tempos) {
+            if (p >= q) break;
+            ms += (p - last) * 60000 / bpm;
+            last = p; bpm = b;
+        }
+        return ms + (q - last) * 60000 / bpm;
+    }
+
+    // Merge tied notes per part + voice + pitch into one sounding note.
+    rawNotes.sort((a, b) => a.start - b.start || a.midi - b.midi);
+    const open = new Map(), merged = [];
+    for (const n of rawNotes) {
+        const key = n.part + ':' + n.voice + ':' + n.midi;
+        if (n.tieStop) {
+            const prev = open.get(key);
+            if (prev && Math.abs(prev.start + prev.dur - n.start) < 1e-6) {
+                prev.dur += n.dur;
+                if (!n.tieStart) open.delete(key);
+                continue;
+            }
+        }
+        const note = { start: n.start, dur: n.dur, midi: n.midi };
+        merged.push(note);
+        if (n.tieStart) open.set(key, note); else open.delete(key);
+    }
+
+    const occ = {}, events = [];
+    for (const n of merged) {
+        const s = qToMs(n.start), e = qToMs(n.start + n.dur);
+        const k = occ[n.midi] | 0; occ[n.midi] = k + 1;
+        events.push([Math.round(s), n.midi, Math.max(1, Math.round(e - s)), 90, k]);
+    }
+    // de-dupe exact (startMs, pitch) unisons across parts, keep the longer
+    const seen = new Map();
+    for (const e of events) {
+        const key = e[0] + ':' + e[1], q = seen.get(key);
+        if (!q || e[2] > q[2]) seen.set(key, e);
+    }
+    const out = [...seen.values()].sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+
+    const pedal = [];
+    for (const [q, down] of pedalQ.sort((a, b) => a[0] - b[0])) {
+        const t = Math.round(qToMs(q));
+        if (!pedal.length || pedal[pedal.length - 1][1] !== down) pedal.push([t, down]);
+    }
+    if (pedal.length && pedal[pedal.length - 1][1]) {
+        let end = 0;
+        for (const e of out) end = Math.max(end, e[0] + e[2]);
+        pedal.push([end, false]);
+    }
+
+    out.pedal = pedal;
+    out.title = title;
+    out.composer = composer;
+    out.kind = 'musicxml';
+    return out;
+}
+
+function decodeXml(bytes) {
+    if (bytes.length >= 2) {
+        if (bytes[0] === 0xFF && bytes[1] === 0xFE) return new TextDecoder('utf-16le').decode(bytes);
+        if (bytes[0] === 0xFE && bytes[1] === 0xFF) return new TextDecoder('utf-16be').decode(bytes);
+    }
+    try {
+        const head = new TextDecoder('latin1').decode(bytes.subarray(0, Math.min(bytes.length, 200)));
+        const m = /<\?xml[^>]*encoding\s*=\s*["']([^"']+)["']/i.exec(head);
+        if (m && !/^utf-?8$/i.test(m[1])) return new TextDecoder(m[1]).decode(bytes);
+    } catch (e) {}
+    return new TextDecoder('utf-8').decode(bytes);
+}
+
+async function inflateRaw(bytes) {
+    if (typeof DecompressionStream === 'undefined')
+        throw new Error('this browser cannot open compressed .mxl — export uncompressed MusicXML instead');
+    const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+    return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+
+function zipEntries(buf) {
+    const dv = new DataView(buf), u8 = new Uint8Array(buf);
+    let eocd = -1;
+    const min = Math.max(0, u8.length - 22 - 65535);
+    for (let i = u8.length - 22; i >= min; i--) {
+        if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+    }
+    if (eocd < 0) throw new Error('not a .mxl archive');
+    const count = dv.getUint16(eocd + 10, true);
+    let p = dv.getUint32(eocd + 16, true);
+    const entries = [];
+    for (let i = 0; i < count; i++) {
+        if (p + 46 > u8.length || dv.getUint32(p, true) !== 0x02014b50) break;
+        const method = dv.getUint16(p + 10, true);
+        const csize = dv.getUint32(p + 20, true);
+        const fnlen = dv.getUint16(p + 28, true);
+        const extralen = dv.getUint16(p + 30, true);
+        const commentlen = dv.getUint16(p + 32, true);
+        const local = dv.getUint32(p + 42, true);
+        const name = new TextDecoder().decode(u8.subarray(p + 46, p + 46 + fnlen));
+        entries.push({ name, method, csize, local });
+        p += 46 + fnlen + extralen + commentlen;
+    }
+    if (!entries.length) throw new Error('empty .mxl archive');
+    return entries;
+}
+
+async function zipRead(buf, entry) {
+    const dv = new DataView(buf), u8 = new Uint8Array(buf);
+    const p = entry.local;
+    if (p + 30 > u8.length || dv.getUint32(p, true) !== 0x04034b50) throw new Error('damaged .mxl archive');
+    const fnlen = dv.getUint16(p + 26, true);
+    const extralen = dv.getUint16(p + 28, true);
+    const start = p + 30 + fnlen + extralen;
+    const data = u8.subarray(start, start + entry.csize);
+    if (entry.method === 0) return data;
+    if (entry.method === 8) return await inflateRaw(data);
+    throw new Error('unsupported compression in .mxl');
+}
+
+async function parseMXL(buf) {
+    if (buf instanceof Uint8Array) buf = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
+    const entries = zipEntries(buf);
+    let rootPath = '';
+    const container = entries.find(e => /(^|\/)META-INF\/container\.xml$/i.test(e.name));
+    if (container) {
+        const doc = new DOMParser().parseFromString(decodeXml(await zipRead(buf, container)), 'application/xml');
+        const rf = doc.getElementsByTagName('rootfile')[0] || doc.getElementsByTagNameNS('*', 'rootfile')[0];
+        if (rf) rootPath = (rf.getAttribute('full-path') || '').replace(/^\/+/, '');
+    }
+    if (!rootPath) {
+        const cand = entries.find(e => /\.(musicxml|xml)$/i.test(e.name) && !/(^|\/)META-INF\//i.test(e.name));
+        if (!cand) throw new Error('no score found inside the .mxl');
+        rootPath = cand.name;
+    }
+    const entry = entries.find(e => e.name === rootPath) ||
+                  entries.find(e => e.name.toLowerCase() === rootPath.toLowerCase());
+    if (!entry) throw new Error('the .mxl is missing its score file');
+    return decodeXml(await zipRead(buf, entry));
+}
+
+async function parseMusicFile(file) {
+    const buf = await file.arrayBuffer();
+    const u8 = new Uint8Array(buf);
+    if (u8.length > 4 && u8[0] === 0x50 && u8[1] === 0x4b) {
+        return parseMusicXML(await parseMXL(buf));
+    }
+    const utf16 = u8.length >= 2 && ((u8[0] === 0xFF && u8[1] === 0xFE) || (u8[0] === 0xFE && u8[1] === 0xFF));
+    let i = 0;
+    if (u8.length >= 3 && u8[0] === 0xEF && u8[1] === 0xBB && u8[2] === 0xBF) i = 3;
+    while (!utf16 && i < u8.length && (u8[i] === 9 || u8[i] === 10 || u8[i] === 13 || u8[i] === 32)) i++;
+    if (utf16 || u8[i] === 0x3C) return parseMusicXML(decodeXml(u8));
+    const events = parseMIDI(buf);
+    events.kind = 'midi';
+    return events;
+}
+
 // user songs, persisted in localStorage so uploads survive reloads
 const USER_KEY = 'piano_user_songs';
 function loadUserSongs() {
@@ -1296,10 +1596,11 @@ midiInput.addEventListener('change', async e => {
     let lastId = null, warnedSave = false;
     for (const f of files) {
         try {
-            const events = parseMIDI(await f.arrayBuffer());
+            const events = await parseMusicFile(f);
             if (!events.length) { alert('No notes found in “' + f.name + '”.'); continue; }
-            const name = (f.name.replace(/\.(midi?|kar)$/i, '').replace(/[_]+/g, ' ').trim()) || 'Untitled';
-            const { id, saved } = addUserMIDI(name, events, null, events.pedal);
+            const name = (events.title || f.name.replace(/\.(midi?|kar|musicxml|xml|mxl)$/i, '').replace(/[_]+/g, ' ').trim()) || 'Untitled';
+            const by = events.composer || (events.kind === 'musicxml' ? 'your MusicXML' : null);
+            const { id, saved } = addUserMIDI(name, events, by, events.pedal);
             lastId = id;
             if (!saved && !warnedSave) { warnedSave = true; alert('Added — but it couldn’t be saved for next time (browser storage is full).'); }
         } catch (err) {
