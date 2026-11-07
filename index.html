@@ -96,6 +96,12 @@
             display: flex; align-items: center; gap: 4px;
             background: #050506; border: 1px solid #1c1c22; border-radius: 10px; padding: 6px 8px;
         }
+        #keySel {
+            background: #17171d; border: 1px solid #26262e; border-radius: 16px;
+            color: #d7dbe2; padding: 9px 8px; font-size: 13px; font-weight: 600;
+            cursor: pointer; max-width: 136px;
+        }
+        #keySel:focus { outline: none; border-color: #6d4bd8; }
         .szbtn {
             width: 30px; height: 30px; flex: none; border-radius: 7px;
             background: #23232a; border: 1px solid #34343e; color: #cfd3da;
@@ -217,6 +223,8 @@
         .songRow .del:hover { color: #ff6b6b; background: #33333e; }
         @media (max-width: 640px) { #hint, .seg.hideSm { display: none; } .seg { padding: 8px 11px; }
             .lab { font-size: 10px; } .black .lab { font-size: 8px; }   /* fingering still fits a phone-width black key */
+            #toolbar { flex-wrap: wrap; }        /* the key box must not push controls off-screen */
+            #keySel { max-width: 80px; font-size: 11px; padding: 7px 4px; }
         }
     </style>
 </head>
@@ -238,9 +246,12 @@
     <div id="toolbar">
         <div class="btn icon on" id="sustainBtn" title="Sustain (hold notes) — Space">🦶</div>
         <div class="btn icon" id="labelBtn" title="Toggle note labels">🔤</div>
-        <div class="btn icon" id="violinBtn" title="Violin mode — keys and falling notes show first-position fingering (A0=A A1=B A2=C# A3=D, E0=E E1=F# E2=G E3=A…); notes outside the position stay blank">🎻</div>
+        <div class="btn icon" id="violinBtn" title="Violin mode — keys and falling notes show first-position fingering for the song's key (E2 is G in D major, G# in A major)">🎻</div>
         <div class="btn icon" id="learnBtn" title="Learn mode — notes fall onto the keys so you can play along">🎓</div>
         <div class="btn icon rec" id="recBtn" title="Record your playing">⏺</div>
+        <select id="keySel" title="Fingering key — Auto follows the song; pick a key to override">
+            <option value="auto">Auto</option>
+        </select>
         <div id="sizeSel" title="How many octaves to show">
             <span class="lbl hideSm">Size</span>
             <div class="szbtn" data-oct="2" title="2 octaves">2</div>
@@ -512,16 +523,15 @@ let violinMode = prefs.violin !== false;   // on by default — label keys/notes
 let kbOctave = 4;                // base octave for computer-keyboard mapping
 
 // ---------------------------------------------------------------------------
-//  VIOLIN FINGERING — first position
+//  VIOLIN FINGERING — first position, in the key of the music
 //
-//  Four notes per string: the open string plus three fingers. Those notes are
-//  the notes of the first-position scale, NOT every chromatic semitone up to
-//  the next string — A0 is A, A1 is B, A2 is C#, A3 is D, and E0 is E, E1 is
-//  F#, E2 is G, E3 is A. The in-between keys (A#, C natural, D#, …) have no
-//  finger of their own in this position, so they stay blank rather than
-//  borrowing a neighbour's label: a black key is labelled only when that
-//  sharp is one of the four notes (C# and F# here). Notes below the G string
-//  or above third finger on E stay blank too — no invented shifts.
+//  Four notes per string: the open string plus three fingers. Each finger has
+//  a normal spot on the string and a low/high alternative a semitone away —
+//  which one the key needs decides the note. In D major that's A0=A, A1=B,
+//  A2=C#, A3=D and E0=E, E1=F#, E2=G, E3=A (low 2 on the E string); in A
+//  major the same fingers put G# under E2 and D3 (high 2 / high 3). Only
+//  those sixteen notes are labelled: the other black keys have no finger of
+//  their own and stay blank on the keys and on the falling bars.
 // ---------------------------------------------------------------------------
 const VIOLIN_STRINGS = [    // c = ink on white keys, cl = ink on black keys / falling bars
     { n: 'G', open: 55, c: '#a76a10', cl: '#f0b055' },
@@ -529,21 +539,105 @@ const VIOLIN_STRINGS = [    // c = ink on white keys, cl = ink on black keys / f
     { n: 'A', open: 69, c: '#5b34b8', cl: '#b79bff' },
     { n: 'E', open: 76, c: '#b62c66', cl: '#ff86b0' },
 ];
-// [midi, string index, finger] — the sixteen first-position notes, four per
-// string, running up the D-major scale from G3 to A5.
-const FIRST_POSITION = [
-    [55, 0, 0], [57, 0, 1], [59, 0, 2], [61, 0, 3],   // G3  A3  B3  C#4
-    [62, 1, 0], [64, 1, 1], [66, 1, 2], [67, 1, 3],   // D4  E4  F#4 G4
-    [69, 2, 0], [71, 2, 1], [73, 2, 2], [74, 2, 3],   // A4  B4  C#5 D5
-    [76, 3, 0], [78, 3, 1], [79, 3, 2], [81, 3, 3],   // E5  F#5 G5  A5
-];
-const VIOLIN_FINGERS = new Map(FIRST_POSITION.map(([midi, s, finger]) => {
-    const str = VIOLIN_STRINGS[s];
-    return [midi, { text: str.n + finger, c: str.c, cl: str.cl }];
-}));
-function violinFinger(midi) {
-    return VIOLIN_FINGERS.get(midi) || null;   // not a first-position note — unlabelled
+const MAJOR_SCALE = [0, 2, 4, 5, 7, 9, 11];
+const MINOR_SCALE = [0, 2, 3, 5, 7, 8, 10];   // natural minor
+const KEY_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+const normPc = n => ((n % 12) + 12) % 12;
+// [preferred, alternative] semitone offsets of fingers 1, 2, 3 above the
+// open string: normal 1 / low 1, high 2 / low 2, normal 3 / high 3.
+const FINGER_OFFSETS = [[2, 1], [4, 3], [5, 6]];
+
+const keyLabel = k => KEY_NAMES[k.tonic] + (k.mode === 'minor' ? ' minor' : ' major');
+function keyFromFifths(fifths, mode) {
+    const minor = mode === 'minor';
+    return { tonic: normPc(7 * fifths + (minor ? 9 : 0)), mode: minor ? 'minor' : 'major' };
 }
+function keyFromValue(v) {
+    const m = /^(\d+):(major|minor)$/.exec(v || '');
+    return m ? { tonic: normPc(+m[1]), mode: m[2] } : null;
+}
+function fingerTableFor(key) {
+    const steps = key.mode === 'minor' ? MINOR_SCALE : MAJOR_SCALE;
+    const inKey = new Set(steps.map(d => normPc(key.tonic + d)));
+    const table = new Map();
+    for (const s of VIOLIN_STRINGS) {
+        const notes = [s.open];                 // finger 0 is always the open string
+        for (const opts of FINGER_OFFSETS) {
+            const off = opts.find(o => inKey.has(normPc(s.open + o))) ?? opts[0];
+            notes.push(s.open + off);
+        }
+        notes.forEach((midi, finger) =>
+            table.set(midi, { text: s.n + finger, c: s.c, cl: s.cl }));
+    }
+    return table;
+}
+// Best-effort key from the notes themselves, for files with no key signature
+// (and for recordings). Duration-weighted; the bowed line counts extra because
+// that's the line the fingering is for. A manual override always wins.
+function detectKey(events) {
+    const h = new Array(12).fill(0);
+    for (const e of events || []) {
+        if (!e || !(e[1] > 0)) continue;
+        const w = Math.min(2, Math.max(0.05, (e[2] || 300) / 1000));
+        h[normPc(e[1])] += w * (e[5] === 'vn' ? 1.5 : 1);
+    }
+    let best = null;
+    for (const mode of ['major', 'minor']) {
+        const steps = mode === 'minor' ? MINOR_SCALE : MAJOR_SCALE;
+        for (let tonic = 0; tonic < 12; tonic++) {
+            const inKey = new Set(steps.map(d => normPc(tonic + d)));
+            let score = 0.2 * h[tonic];
+            for (let pc = 0; pc < 12; pc++) score += h[pc] * (inKey.has(pc) ? 1 : -0.8);
+            if (!best || score > best.score) best = { tonic, mode, score };
+        }
+    }
+    return { tonic: best.tonic, mode: best.mode };
+}
+
+// The chart follows the loaded song. Transposing a song shifts the chart with
+// it, so the falling bars keep their fingerings instead of going blank.
+let keyOverride = prefs.key || 'auto';
+let currentSongKey = { tonic: 2, mode: 'major' };   // D major at rest
+let activeKey = currentSongKey;
+let keyShift = 0;
+let fingerTable = fingerTableFor(currentSongKey);
+const keySel = document.getElementById('keySel');
+for (let tonic = 0; tonic < 12; tonic++) {
+    for (const mode of ['major', 'minor']) {
+        const opt = document.createElement('option');
+        opt.value = tonic + ':' + mode;
+        opt.textContent = keyLabel({ tonic, mode });
+        keySel.appendChild(opt);
+    }
+}
+if (keyOverride !== 'auto' && !keyFromValue(keyOverride)) keyOverride = 'auto';
+keySel.value = keyOverride;
+keySel.addEventListener('change', () => {
+    keyOverride = keySel.value;
+    prefs.key = keyOverride; savePrefs();
+    setFingering(keyShift);
+});
+function updateKeyUI() {
+    const shiftTxt = keyShift ? ' ' + (keyShift > 0 ? '+' : '') + keyShift : '';
+    keySel.options[0].textContent = 'Auto · ' + keyLabel(activeKey) + shiftTxt;
+    keySel.value = keyOverride;
+    keySel.title = 'Fingering key — ' + keyLabel(activeKey) +
+        ' (auto-detected from the song). Pick a key to override.';
+}
+function setFingering(shift) {
+    const k = (keyOverride === 'auto' ? null : keyFromValue(keyOverride)) || currentSongKey;
+    if (k.tonic !== activeKey.tonic || k.mode !== activeKey.mode || shift !== keyShift) {
+        activeKey = k;
+        keyShift = shift || 0;
+        fingerTable = fingerTableFor(k);
+        applyLabels();
+    }
+    updateKeyUI();
+}
+function violinFinger(midi) {
+    return fingerTable.get(midi - keyShift) || null;   // not in this position — unlabelled
+}
+setFingering(0);
 
 // Labels are a view over the keys, so switching modes just rewrites them.
 function applyLabels() {
@@ -788,7 +882,7 @@ document.getElementById('instrBtn').addEventListener('click', () => {
     document.getElementById('instrName').textContent = INSTRUMENTS[instrument].name;
 });
 document.getElementById('gear').addEventListener('click', () => {
-    alert('🎹 Web Piano\n\n• Play with mouse, multi-touch, or your computer keyboard\n• Polyphonic: press many keys at once for chords\n• Sustain pedal 🦶 (Space) holds notes\n• Z / X shift the keyboard octave\n• Tap the instrument name to change the sound\n\nFree & open source (MIT) — github.com/hen-ml/piano');
+    alert('🎹 Web Piano\n\n• Play with mouse, multi-touch, or your computer keyboard\n• Polyphonic: press many keys at once for chords\n• Sustain pedal 🦶 (Space) holds notes\n• Z / X shift the keyboard octave\n• 🎻 fingering follows the song\'s key — override it in the key box\n• Tap the instrument name to change the sound\n\nFree & open source (MIT) — github.com/hen-ml/piano');
 });
 document.getElementById('segChord').addEventListener('click', () => {
     // quick demo: play a C major chord so you can hear polyphony
@@ -868,7 +962,7 @@ installBtn.addEventListener('click', async () => {
 //  Each note is [midi, beats]; 0 = rest. beat is ms per beat.
 // ---------------------------------------------------------------------------
 const SONGS = {
-    lightlyrow: { name: 'Lightly Row', by: 'trad. American · Suzuki Violin, Bk 1 · duet',
+    lightlyrow: { name: 'Lightly Row', by: 'trad. American · Suzuki Violin, Bk 1 · duet', key: { tonic: 9, mode: 'major' },
         // Violin & piano duet in A major (traditional, public domain/CC0).
         // Event shape: [startMs, midi, durMs, velocity, retriggerIndex, part?] —
         // 'vn' is the violin line (bowed synth, never lights the keys, cyan);
@@ -876,14 +970,14 @@ const SONGS = {
         // right hand falls green and the left purple even across middle C.
         // Shared pitches go to the violin.
         events: [[0,45,1200,80,0,'lh'],[0,61,600,80,0,'rh'],[0,76,600,88,0,'vn'],[600,64,600,80,0,'rh'],[600,73,600,88,0,'vn'],[1200,52,1200,80,0,'lh'],[1200,69,600,80,0,'rh'],[1200,73,1200,88,1,'vn'],[1800,64,600,80,1,'rh'],[2400,40,1200,80,0,'lh'],[2400,59,600,80,0,'rh'],[2400,74,600,88,0,'vn'],[3000,62,600,80,0,'rh'],[3000,71,600,88,0,'vn'],[3600,52,1200,80,1,'lh'],[3600,68,600,80,0,'rh'],[3600,71,1200,88,1,'vn'],[4200,62,600,80,1,'rh'],[4800,45,1200,80,1,'lh'],[4800,61,600,80,1,'rh'],[4800,69,600,88,1,'vn'],[5400,64,600,80,2,'rh'],[5400,71,600,88,2,'vn'],[6000,52,1200,80,2,'lh'],[6000,69,600,80,2,'rh'],[6000,73,600,88,2,'vn'],[6600,64,600,80,3,'rh'],[6600,74,600,88,1,'vn'],[7200,45,1200,80,2,'lh'],[7200,61,600,80,2,'rh'],[7200,76,600,88,1,'vn'],[7800,64,600,80,4,'rh'],[7800,76,600,88,2,'vn'],[8400,52,1200,80,3,'lh'],[8400,69,600,80,3,'rh'],[8400,76,1200,88,3,'vn'],[9000,64,600,80,5,'rh'],[9600,45,1200,80,3,'lh'],[9600,61,600,80,3,'rh'],[9600,76,600,88,4,'vn'],[10200,64,600,80,6,'rh'],[10200,73,600,88,3,'vn'],[10800,52,1200,80,4,'lh'],[10800,69,600,80,4,'rh'],[10800,73,1200,88,4,'vn'],[11400,64,600,80,7,'rh'],[12000,40,1200,80,1,'lh'],[12000,59,600,80,1,'rh'],[12000,74,600,88,2,'vn'],[12600,62,600,80,2,'rh'],[12600,71,600,88,3,'vn'],[13200,52,1200,80,5,'lh'],[13200,68,600,80,1,'rh'],[13200,71,1200,88,4,'vn'],[13800,62,600,80,3,'rh'],[14400,45,1200,80,4,'lh'],[14400,61,600,80,4,'rh'],[14400,69,600,88,5,'vn'],[15000,64,600,80,8,'rh'],[15000,73,600,88,5,'vn'],[15600,40,1200,80,2,'lh'],[15600,59,600,80,2,'rh'],[15600,76,600,88,5,'vn'],[16200,68,600,80,2,'rh'],[16200,76,600,88,6,'vn'],[16800,45,1200,80,5,'lh'],[16800,61,600,80,5,'rh'],[16800,69,600,88,6,'vn'],[17400,64,600,80,9,'rh'],[17400,69,600,88,7,'vn'],[18000,45,1200,80,6,'lh'],[18000,61,1200,80,6,'rh'],[18000,64,1200,80,10,'rh'],[18000,69,1200,88,8,'vn'],[19200,40,1200,80,3,'lh'],[19200,59,600,80,3,'rh'],[19200,71,600,88,5,'vn'],[19800,62,600,80,4,'rh'],[19800,71,600,88,6,'vn'],[20400,52,1200,80,6,'lh'],[20400,68,600,80,3,'rh'],[20400,71,600,88,7,'vn'],[21000,62,600,80,5,'rh'],[21000,71,600,88,8,'vn'],[21600,40,1200,80,4,'lh'],[21600,59,600,80,4,'rh'],[21600,71,600,88,9,'vn'],[22200,62,600,80,6,'rh'],[22200,73,600,88,6,'vn'],[22800,52,1200,80,7,'lh'],[22800,68,600,80,4,'rh'],[22800,74,1200,88,3,'vn'],[23400,62,600,80,7,'rh'],[24000,45,1200,80,7,'lh'],[24000,61,600,80,7,'rh'],[24000,73,600,88,7,'vn'],[24600,64,600,80,11,'rh'],[24600,73,600,88,8,'vn'],[25200,52,1200,80,8,'lh'],[25200,69,600,80,9,'rh'],[25200,73,600,88,9,'vn'],[25800,64,600,80,12,'rh'],[25800,73,600,88,10,'vn'],[26400,45,1200,80,8,'lh'],[26400,61,600,80,8,'rh'],[26400,73,600,88,11,'vn'],[27000,64,600,80,13,'rh'],[27000,74,600,88,4,'vn'],[27600,52,1200,80,9,'lh'],[27600,69,600,80,10,'rh'],[27600,76,1200,88,7,'vn'],[28200,64,600,80,14,'rh'],[28800,45,1200,80,9,'lh'],[28800,61,600,80,9,'rh'],[28800,76,600,88,8,'vn'],[29400,64,600,80,15,'rh'],[29400,73,600,88,12,'vn'],[30000,52,1200,80,10,'lh'],[30000,69,600,80,11,'rh'],[30000,73,1200,88,13,'vn'],[30600,64,600,80,16,'rh'],[31200,40,1200,80,5,'lh'],[31200,59,600,80,5,'rh'],[31200,74,600,88,5,'vn'],[31800,62,600,80,8,'rh'],[31800,71,600,88,10,'vn'],[32400,52,1200,80,11,'lh'],[32400,68,600,80,5,'rh'],[32400,71,1200,88,11,'vn'],[33000,62,600,80,9,'rh'],[33600,45,1200,80,10,'lh'],[33600,61,600,80,10,'rh'],[33600,69,600,88,12,'vn'],[34200,64,600,80,17,'rh'],[34200,73,600,88,14,'vn'],[34800,40,1200,80,6,'lh'],[34800,59,600,80,6,'rh'],[34800,76,600,88,9,'vn'],[35400,68,600,80,6,'rh'],[35400,76,600,88,10,'vn'],[36000,45,2400,80,11,'lh'],[36000,57,2400,80,0,'lh'],[36000,61,2400,80,11,'rh'],[36000,64,2400,80,18,'rh'],[36000,69,2400,88,13,'vn']]},
-    longlongago: { name: 'Long, Long Ago', by: 'T.H. Bayly · Suzuki Violin · duet',
+    longlongago: { name: 'Long, Long Ago', by: 'T.H. Bayly · Suzuki Violin · duet', key: { tonic: 9, mode: 'major' },
         // Violin & piano duet in A major (Thomas Haynes Bayly, 1797–1839 — public
         // domain). Note the source engraving's work-title reads "Long,Long Along";
         // this is the familiar Bayly song. Events produced by the built-in MusicXML
         // importer: 'vn' = violin (GM 41 — the engraving spells it "Violín"),
         // 'rh'/'lh' from the piano part's grand staff.
         events: [[0,45,1000,90,1,'lh'],[0,61,1000,90,0,'rh'],[0,64,1000,90,0,'rh'],[0,69,500,90,0,'vn'],[250,52,250,90,0,'lh'],[500,57,250,90,0,'lh'],[500,69,250,90,1,'vn'],[750,56,250,90,0,'lh'],[750,71,250,90,0,'vn'],[1000,45,1000,90,3,'lh'],[1000,64,1000,90,1,'rh'],[1000,69,1000,90,2,'rh'],[1000,73,500,90,0,'vn'],[1250,52,250,90,1,'lh'],[1500,57,250,90,1,'lh'],[1500,73,250,90,1,'vn'],[1750,52,250,90,2,'lh'],[1750,74,250,90,0,'vn'],[2000,45,1000,90,5,'lh'],[2000,69,1000,90,3,'rh'],[2000,73,1000,90,2,'rh'],[2000,76,500,90,0,'vn'],[2250,52,250,90,3,'lh'],[2500,57,250,90,2,'lh'],[2500,78,250,90,0,'vn'],[2750,54,250,90,0,'lh'],[2750,76,250,90,1,'vn'],[3000,45,1000,90,7,'lh'],[3000,64,1000,90,2,'rh'],[3000,69,1000,90,4,'rh'],[3000,73,1000,90,3,'vn'],[3250,52,250,90,4,'lh'],[3500,57,250,90,3,'lh'],[3750,52,250,90,5,'lh'],[4000,40,250,90,0,'lh'],[4000,64,1000,90,3,'rh'],[4000,68,1000,90,0,'rh'],[4000,76,500,90,2,'vn'],[4250,52,250,90,6,'lh'],[4500,56,250,90,1,'lh'],[4500,74,250,90,1,'vn'],[4750,54,250,90,1,'lh'],[4750,73,250,90,4,'vn'],[5000,40,250,90,1,'lh'],[5000,64,1000,90,4,'rh'],[5000,68,1000,90,1,'rh'],[5000,71,1000,90,1,'vn'],[5250,52,250,90,7,'lh'],[5500,56,250,90,2,'lh'],[5750,52,250,90,8,'lh'],[6000,45,1000,90,9,'lh'],[6000,64,1000,90,5,'rh'],[6000,69,1000,90,5,'rh'],[6000,74,500,90,2,'vn'],[6250,52,250,90,9,'lh'],[6500,57,250,90,4,'lh'],[6500,73,250,90,5,'vn'],[6750,56,250,90,3,'lh'],[6750,71,250,90,2,'vn'],[7000,45,1000,90,11,'lh'],[7000,61,1000,90,1,'rh'],[7000,64,1000,90,6,'rh'],[7000,69,1000,90,6,'vn'],[7250,52,250,90,10,'lh'],[7500,57,250,90,5,'lh'],[7750,52,250,90,11,'lh'],[8000,45,1000,90,13,'lh'],[8000,61,1000,90,2,'rh'],[8000,64,1000,90,7,'rh'],[8000,69,500,90,7,'vn'],[8250,52,250,90,12,'lh'],[8500,57,250,90,6,'lh'],[8500,69,250,90,8,'vn'],[8750,56,250,90,4,'lh'],[8750,71,250,90,3,'vn'],[9000,45,1000,90,15,'lh'],[9000,64,1000,90,8,'rh'],[9000,69,1000,90,9,'rh'],[9000,73,500,90,6,'vn'],[9250,52,250,90,13,'lh'],[9500,57,250,90,7,'lh'],[9500,73,250,90,7,'vn'],[9750,52,250,90,14,'lh'],[9750,74,250,90,3,'vn'],[10000,45,1000,90,17,'lh'],[10000,69,1000,90,10,'rh'],[10000,73,1000,90,8,'rh'],[10000,76,500,90,3,'vn'],[10250,52,250,90,15,'lh'],[10500,57,250,90,8,'lh'],[10500,78,250,90,1,'vn'],[10750,56,250,90,5,'lh'],[10750,76,250,90,4,'vn'],[11000,45,1000,90,19,'lh'],[11000,64,1000,90,9,'rh'],[11000,69,1000,90,11,'rh'],[11000,73,1000,90,9,'vn'],[11250,52,250,90,16,'lh'],[11500,57,250,90,9,'lh'],[11750,52,250,90,17,'lh'],[12000,40,250,90,2,'lh'],[12000,64,1000,90,10,'rh'],[12000,68,1000,90,2,'rh'],[12000,76,500,90,5,'vn'],[12250,52,250,90,18,'lh'],[12500,56,250,90,6,'lh'],[12500,74,250,90,4,'vn'],[12750,54,250,90,2,'lh'],[12750,73,250,90,10,'vn'],[13000,40,250,90,3,'lh'],[13000,62,1000,90,0,'rh'],[13000,68,1000,90,3,'rh'],[13000,71,500,90,4,'vn'],[13250,52,250,90,19,'lh'],[13500,56,250,90,7,'lh'],[13500,73,250,90,11,'vn'],[13750,52,250,90,20,'lh'],[13750,71,250,90,5,'vn'],[14000,45,1000,90,21,'lh'],[14000,61,1000,90,3,'rh'],[14000,69,1000,90,12,'vn'],[14250,52,250,90,21,'lh'],[14500,57,250,90,10,'lh'],[14750,52,250,90,22,'lh'],[15000,49,250,90,0,'lh'],[15250,52,250,90,23,'lh'],[15500,57,250,90,11,'lh'],[15750,61,250,90,4,'lh'],[16000,61,250,90,5,'lh'],[16000,64,1000,90,12,'rh'],[16000,76,500,90,6,'vn'],[16250,52,250,90,24,'lh'],[16500,59,250,90,0,'lh'],[16500,62,250,90,1,'rh'],[16500,74,250,90,5,'vn'],[16750,57,250,90,12,'lh'],[16750,61,250,90,6,'rh'],[16750,73,250,90,12,'vn'],[17000,56,250,90,8,'lh'],[17000,59,500,90,1,'rh'],[17000,64,1000,90,13,'rh'],[17000,71,500,90,6,'vn'],[17250,52,250,90,25,'lh'],[17500,56,250,90,9,'lh'],[17500,59,500,90,2,'rh'],[17500,64,250,90,14,'vn'],[17750,52,250,90,26,'lh'],[17750,64,250,90,15,'vn'],[18000,59,250,90,3,'lh'],[18000,62,500,90,2,'rh'],[18000,64,1000,90,16,'rh'],[18000,74,500,90,6,'vn'],[18250,52,250,90,27,'lh'],[18500,57,250,90,13,'lh'],[18500,61,250,90,7,'rh'],[18500,73,250,90,13,'vn'],[18750,52,250,90,28,'lh'],[18750,59,250,90,4,'rh'],[18750,71,250,90,7,'vn'],[19000,45,250,90,22,'lh'],[19000,61,1000,90,8,'rh'],[19000,64,1000,90,17,'rh'],[19000,69,1000,90,14,'vn'],[19250,49,250,90,1,'lh'],[19500,52,250,90,29,'lh'],[19750,57,250,90,14,'lh'],[20000,61,250,90,9,'lh'],[20000,64,1000,90,18,'rh'],[20000,76,500,90,7,'vn'],[20250,52,250,90,30,'lh'],[20500,59,250,90,5,'lh'],[20500,62,250,90,3,'rh'],[20500,74,250,90,7,'vn'],[20750,57,250,90,15,'lh'],[20750,61,250,90,10,'rh'],[20750,73,250,90,14,'vn'],[21000,56,250,90,10,'lh'],[21000,59,500,90,6,'rh'],[21000,64,1000,90,20,'rh'],[21000,71,500,90,8,'vn'],[21250,52,250,90,31,'lh'],[21500,56,250,90,11,'lh'],[21500,59,500,90,7,'rh'],[21500,64,250,90,21,'vn'],[21750,52,250,90,32,'lh'],[21750,64,250,90,22,'vn'],[22000,59,250,90,8,'lh'],[22000,62,500,90,4,'rh'],[22000,64,1000,90,23,'rh'],[22000,74,500,90,8,'vn'],[22250,52,250,90,33,'lh'],[22500,57,250,90,16,'lh'],[22500,61,250,90,11,'rh'],[22500,73,250,90,15,'vn'],[22750,52,250,90,34,'lh'],[22750,59,250,90,9,'rh'],[22750,71,250,90,9,'vn'],[23000,45,250,90,23,'lh'],[23000,61,1000,90,12,'rh'],[23000,64,1000,90,24,'rh'],[23000,69,1000,90,15,'vn'],[23250,49,250,90,2,'lh'],[23500,52,250,90,35,'lh'],[23750,57,250,90,17,'lh'],[24000,45,1000,90,24,'lh'],[24000,61,1000,90,13,'rh'],[24000,64,1000,90,25,'rh'],[24000,69,500,90,16,'vn'],[24250,52,250,90,36,'lh'],[24500,57,250,90,18,'lh'],[24500,69,250,90,17,'vn'],[24750,52,250,90,37,'lh'],[24750,71,250,90,10,'vn'],[25000,45,1000,90,26,'lh'],[25000,64,1000,90,26,'rh'],[25000,69,1000,90,18,'rh'],[25000,73,500,90,16,'vn'],[25250,52,250,90,38,'lh'],[25500,57,250,90,19,'lh'],[25500,73,250,90,17,'vn'],[25750,52,250,90,39,'lh'],[25750,74,250,90,9,'vn'],[26000,45,1000,90,28,'lh'],[26000,69,1000,90,19,'rh'],[26000,73,1000,90,18,'rh'],[26000,76,500,90,8,'vn'],[26250,52,250,90,40,'lh'],[26500,57,250,90,20,'lh'],[26500,78,250,90,2,'vn'],[26750,52,250,90,41,'lh'],[26750,76,250,90,9,'vn'],[27000,45,1000,90,30,'lh'],[27000,64,1000,90,27,'rh'],[27000,69,1000,90,20,'rh'],[27000,73,1000,90,19,'vn'],[27250,52,250,90,42,'lh'],[27500,57,250,90,21,'lh'],[27750,52,250,90,43,'lh'],[28000,46,250,90,0,'lh'],[28000,67,500,90,0,'rh'],[28000,76,500,90,10,'vn'],[28250,49,250,90,3,'lh'],[28500,54,250,90,3,'lh'],[28500,66,250,90,0,'rh'],[28500,74,250,90,10,'vn'],[28750,58,250,90,0,'lh'],[28750,64,250,90,28,'rh'],[28750,73,250,90,20,'vn'],[29000,47,500,90,0,'lh'],[29000,59,500,90,10,'lh'],[29000,62,500,90,5,'rh'],[29000,71,500,90,11,'vn'],[29500,52,500,90,44,'lh'],[29500,62,500,90,6,'rh'],[29500,68,500,90,4,'rh'],[29500,73,250,90,21,'vn'],[29750,71,250,90,12,'vn'],[30000,45,1000,90,32,'lh'],[30000,61,1000,90,14,'rh'],[30000,69,1000,90,21,'vn'],[30250,52,250,90,45,'lh'],[30500,57,250,90,22,'lh'],[30750,52,250,90,46,'lh'],[31000,45,500,90,34,'lh']] },
-    canonind: { name: 'Canon in D', by: 'Johann Pachelbel · violin & piano duet',
+    canonind: { name: 'Canon in D', by: 'Johann Pachelbel · violin & piano duet', key: { tonic: 2, mode: 'major' },
         // Johann Pachelbel (1653–1706 — public domain), arrangements of the famous
         // ground for violin and piano, D major. Events produced by the built-in
         // MusicXML importer: 'vn' = violin, 'rh'/'lh' from the piano part's
@@ -1072,8 +1166,12 @@ function playFrom(id, offset) {
             .sort((a, b) => a[0] - b[0]);
         songDur = songEvents.reduce((a, e) => Math.max(a, e[0] + e[2]), 0);
         songLoadedId = id;
+        // a declared key (built-in, or the file's key signature) wins; otherwise
+        // guess from the notes. The fingering chart follows whichever it is.
+        currentSongKey = s.key || songEvents.key || detectKey(songEvents);
     }
     songPlaying = id; songPaused = false;
+    setFingering(songTranspose);
     // Learn mode is on by default; this only re-lights it if a song stop put
     // it out (learnAuto). An explicit off (prefs.learn === false) always wins.
     if (!learnMode && prefs.learn !== false) {
@@ -1107,6 +1205,8 @@ function setSongRate(r) {
 function setSongTranspose(n) {
     songTranspose = Math.max(-12, Math.min(12, n));
     if (songPlaying && !songPaused) seekTo(songTimeNow());   // re-strike at the new pitch
+    // the notes moved, so move the first-position chart with them
+    setFingering(songPlaying ? songTranspose : 0);
     updateTransportUI();
 }
 function stopSong() {
@@ -1117,6 +1217,7 @@ function stopSong() {
     // if the song switched falling notes on, put the full-height piano back
     if (learnAuto && prefs.learn === undefined) { learnAuto = false; setLearnMode(false, false); }
     stopClockUI(); hideTransport(); stopFall(); renderSongs();
+    setFingering(0);            // no song to follow: back to the untransposed chart
 }
 
 // ---- transport UI ----
@@ -1250,7 +1351,7 @@ function parseMIDI(buf) {
     const hlen = u32(); u16(); const ntracks = u16(); const division = u16();
     p += hlen - 6;
     const tpb = (division & 0x8000) ? 480 : division;   // ticks per beat (SMPTE → fallback)
-    const evs = []; let seq = 0;
+    const evs = []; let seq = 0, midiKey = null;
     for (let t = 0; t < ntracks; t++) {
         if (p + 8 > dv.byteLength) break;
         if (tag() !== 'MTrk') { const l = u32(); p += l; continue; }
@@ -1263,6 +1364,8 @@ function parseMIDI(buf) {
             const hi = ev & 0xf0;
             if (ev === 0xff) { const type = u8(); const l = vlq();
                 if (type === 0x51) evs.push({ tick, seq: seq++, kind: 'tempo', tempo: (dv.getUint8(p) << 16) | (dv.getUint8(p + 1) << 8) | dv.getUint8(p + 2) });
+                else if (type === 0x59 && l >= 2 && !midiKey)    // FF 59: key signature, sf + minor flag
+                    midiKey = keyFromFifths(dv.getInt8(p), dv.getUint8(p + 1) ? 'minor' : 'major');
                 p += l; status = 0;
             } else if (ev === 0xf0 || ev === 0xf7) { const sl = vlq(); p += sl; status = 0; }
             else if (hi === 0x90) { const n = u8(), v = u8(); evs.push({ tick, seq: seq++, kind: v > 0 ? 'on' : 'off', note: n, vel: v, src: t * 16 + (ev & 0x0f) }); }
@@ -1296,6 +1399,7 @@ function parseMIDI(buf) {
     const occ = {}, out = [];
     for (const [s, e, midi, vel] of arr) { const k = occ[midi] | 0; occ[midi] = k + 1; out.push([Math.round(s * 1000), midi, Math.round((e - s) * 1000), vel, k]); }
     out.pedal = pedal;          // also returned as a property so callers can ignore it
+    out.key = midiKey;          // null when the file has no key-signature event
     return out;
 }
 
@@ -1363,6 +1467,7 @@ function parseMusicXML(text) {
     const tempoMap = new Map();   // quarter-note position -> BPM
     const pedalQ = [];            // [quarter-note position, down]
     const rawNotes = [];          // { start, dur, midi, voice, tieStart, tieStop, part, role }
+    let scoreKey = null;          // first <key><fifths> + <mode> in the score
 
     for (let pi = 0; pi < parts.length; pi++) {
         let divisions = 1;
@@ -1383,6 +1488,10 @@ function parseMusicXML(text) {
                     if (d > 0) divisions = d;
                     const st = +xmlText(xmlChild(el, 'staves'));
                     if (st >= 2) grandstaff = true;
+                    const keyEl = xmlChild(el, 'key'), fEl = xmlChild(keyEl, 'fifths');
+                    const fifths = +xmlText(fEl);
+                    if (fEl && !scoreKey && Number.isFinite(fifths))
+                        scoreKey = keyFromFifths(fifths, xmlText(xmlChild(keyEl, 'mode')).toLowerCase());
                 } else if (name === 'direction' || name === 'sound') {
                     let bpm = 0;
                     if (name === 'sound') {
@@ -1525,6 +1634,7 @@ function parseMusicXML(text) {
     out.pedal = pedal;
     out.title = title;
     out.composer = composer;
+    out.key = scoreKey;        // null when the score states no key signature
     out.kind = 'musicxml';
     return out;
 }
@@ -1630,17 +1740,21 @@ async function parseMusicFile(file) {
 const USER_KEY = 'piano_user_songs';
 function loadUserSongs() {
     try { const raw = localStorage.getItem(USER_KEY); if (!raw) return;
-        for (const u of JSON.parse(raw)) SONGS[u.id] = { name: u.name, by: u.by || 'your MIDI', events: u.events, pedal: u.pedal || [], user: true };
+        for (const u of JSON.parse(raw)) SONGS[u.id] = { name: u.name, by: u.by || 'your MIDI', events: u.events, pedal: u.pedal || [], key: u.key || null, user: true };
     } catch (e) {}
 }
 function saveUserSongs() {
-    const arr = Object.entries(SONGS).filter(([, s]) => s.user).map(([id, s]) => ({ id, name: s.name, by: s.by, events: s.events, pedal: s.pedal || [] }));
+    const arr = Object.entries(SONGS).filter(([, s]) => s.user).map(([id, s]) => ({ id, name: s.name, by: s.by, events: s.events, pedal: s.pedal || [], key: s.key || null }));
     try { localStorage.setItem(USER_KEY, JSON.stringify(arr)); return true; }
     catch (e) { return false; }
 }
 function addUserMIDI(name, events, by, pedal) {
     const id = 'u' + Date.now() + '_' + Math.floor(performance.now());
-    SONGS[id] = { name, by: by || 'your MIDI', events, pedal: pedal || [], user: true };
+    // array properties (like a parser's .key) don't survive localStorage, so
+    // keep the key on the song record — the file's signature if it had one,
+    // otherwise a guess from the notes.
+    const key = events.key || detectKey(events);
+    SONGS[id] = { name, by: by || 'your MIDI', events, pedal: pedal || [], key, user: true };
     const saved = saveUserSongs();
     renderSongs();
     return { id, saved };
@@ -1812,6 +1926,10 @@ window.PIANO = {
     toggleRecord: () => recBtn.click(),
     toggleViolin: () => document.getElementById('violinBtn').click(),
     violinFinger, violin: () => violinMode,
+    key: () => ({ ...activeKey, song: { ...currentSongKey }, shift: keyShift, override: keyOverride }),
+    setKey: v => { keyOverride = keySel.value = v; prefs.key = v; savePrefs(); setFingering(keyShift); },
+    detectKey, fingerTableFor,
+    fingerLabels: () => Object.fromEntries([...fingerTable].map(([m, f]) => [m, f.text])),
     learn: () => learnMode, labels: () => showLabels,
     _ctx: () => ac, _comp: () => comp,
     _events: () => songEvents, _songTime: songTimeNow,

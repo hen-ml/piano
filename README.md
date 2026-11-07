@@ -12,11 +12,11 @@ A browser practice tool for piano and violin. Open a MIDI or MusicXML file, slow
 - **Tempo and loop.** 40–150% speed, seek anywhere, loop a range until the passage holds together.
 - **USB MIDI keyboard.** Web MIDI in Chrome and Edge; no driver, no install.
 - **Computer keyboard.** A–L play the white keys, W–U the sharps, Z/X shift octaves, and Space sustains — no hardware needed.
-- **Violin mode.** Labels the first-position notes on the keys and falling bars by string and finger — in string colours. On by default — hit 🎻 to switch it off.
+- **Violin mode.** Labels the first-position notes on the keys and falling bars by string and finger, in the key of the song — in string colours. On by default — hit 🎻 to switch it off, or use the key box to override the detected key.
 - **Works offline.** Install it to your home screen; the service worker keeps it running without a network.
 - **Record and export.** Capture what you played and download it as a `.mid`.
 
-Falling notes and violin fingering are both on by default. Labels, violin mode and your preference for falling notes are remembered on the device.
+Falling notes and violin fingering are both on by default. Labels, violin mode, the key override and your preference for falling notes are remembered on the device.
 
 MusicXML import handles chords, ties, voices, tempo changes and sustain pedal. Repeats and endings are not expanded yet — the score plays through once.
 
@@ -26,7 +26,11 @@ The piano is the accompaniment, but the notes are still piano notes. Violin mode
 
 ![Violin mode: falling notes labelled by string and finger; the piano accompaniment splits green (right hand) and purple (left hand)](docs/hero-violin.png)
 
-First position is four notes per string — open string plus three fingers — not every chromatic key in between. On the A string that's A0 = A, A1 = B, A2 = C#, A3 = D; on the E string E0 = E, E1 = F#, E2 = G, E3 = A, and likewise G0–G3 and D0–D3 below them. Only those sixteen notes are labelled: the sharps that belong to the position (C#, F#) keep their labels, while the other black keys stay blank instead of borrowing a neighbour's finger number. It doesn't choose fingerings for you or read sheet music — it shows where the note sits, and you decide how to play it.
+First position is four notes per string — open string plus three fingers — and **which notes those are depends on the key**. Each finger has a normal spot on the string and a low/high alternative a semitone away; the key decides which one. In D major that's A0 = A, A1 = B, A2 = C#, A3 = D and E0 = E, E1 = F#, E2 = G, E3 = A (low 2 on the E string). In A major the same fingers put G# under E2 and D3 (high 2 / high 3). Only the sixteen in-position notes are labelled: the sharps that belong to the key keep their labels, while the other black keys stay blank instead of borrowing a neighbour's finger number.
+
+The key comes from the file's key signature (MusicXML `<key>` or a MIDI key-signature event), an explicit key on the built-in pieces, or a duration-weighted guess from the notes. The box next to 🎻 shows the detected key and lets you override it — all twelve major and natural-minor keys, remembered on the device. Transposing a song shifts the chart with the notes so the falling bars keep their labels. Key changes *within* a score aren't followed; the first key signature wins.
+
+It shows first position only; it doesn't choose fingerings for you or read sheet music — it shows where the note sits, and you decide how to play it.
 
 The built-in pieces are arranged for duet: the violin line sounds through its own bowed synth (slow attack, vibrato, sawtooth stack), never lights the piano keys, and falls in cyan bars. Piano bars are split by hand using the score's grand staff — green for the treble staff (right hand), purple for the bass staff (left hand). MusicXML imports get the same treatment automatically: violin parts (by part/instrument name or GM program 41) are tagged as the bowed voice, and a part declaring `<staves>2</staves>` has its hands split the same way. Single-staff scores fall back to a middle-C split. At pitches both parts share, the violin takes the note under the bow.
 
