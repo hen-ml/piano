@@ -4,7 +4,7 @@ A browser practice tool for piano and violin. Open a MIDI or MusicXML file, slow
 
 **[Open the app →](https://hen-ml.github.io/piano/)**
 
-![The practice tool playing May Song at 60% tempo with a loop set](docs/hero.png)
+![The practice tool playing Lightly Row at 60% tempo with a loop set](docs/hero.png)
 
 ## What it does
 
@@ -12,7 +12,7 @@ A browser practice tool for piano and violin. Open a MIDI or MusicXML file, slow
 - **Tempo and loop.** 40–150% speed, seek anywhere, loop a range until the passage holds together.
 - **USB MIDI keyboard.** Web MIDI in Chrome and Edge; no driver, no install.
 - **Computer keyboard.** A–L play the white keys, W–U the sharps, Z/X shift octaves, and Space sustains — no hardware needed.
-- **Violin mode.** Labels every key and falling note by string and finger, first position, colour-coded per string. On by default — hit 🎻 to switch it off.
+- **Violin mode.** Labels every key and the falling notes by string and finger, first position — keys in string colours. On by default — hit 🎻 to switch it off.
 - **Works offline.** Install it to your home screen; the service worker keeps it running without a network.
 - **Record and export.** Capture what you played and download it as a `.mid`.
 
@@ -24,7 +24,7 @@ MusicXML import handles chords, ties, voices, tempo changes and sustain pedal. R
 
 The piano is the accompaniment, but the notes are still piano notes. Violin mode is on by default — every key and falling bar is labelled the way a violinist thinks: **G1**, **D3**, **A0** — string, then finger (hit 🎻 to switch it off). Notes outside first position stay unlabelled rather than inventing a shift that isn't there.
 
-![Violin mode: falling notes coloured by string with labels like G1, D1 and A0](docs/hero-violin.png)
+![Violin mode: falling notes labelled by string and finger; the piano accompaniment splits green (right hand) and purple (left hand)](docs/hero-violin.png)
 
 It shows first position only. It doesn't choose fingerings for you or read sheet music — it shows where the note sits, and you decide how to play it.
 
@@ -46,7 +46,7 @@ One HTML file with inline CSS and JavaScript, plus a manifest and a service work
 
 ## Built-in pieces
 
-May Song, Long, Long Ago, Lightly Row (violin & piano duet), Clair de Lune, and Canon in D. Copyrighted arrangements are hidden by default; the app ships public-domain pieces and accepts any MIDI file you own.
+Lightly Row (violin & piano duet) is the built-in piece — transcribed from MusicXML, public domain. Otherwise the app ships no songbook: it accepts any MIDI or MusicXML file you own.
 
 ## More experiments
 

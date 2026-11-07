@@ -1,6 +1,6 @@
 // Offline support: cache the app shell on install, serve cache-first, and
 // refresh the cache in the background when the network is available.
-const CACHE = 'piano-v5';
+const CACHE = 'piano-v6';
 const ASSETS = ['./', './index.html', './manifest.json', './icon.svg'];
 
 self.addEventListener('install', e => {
