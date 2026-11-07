@@ -1150,7 +1150,7 @@ function computeKeyRects() {
     for (const [m, el] of keyEls) keyRects.set(m, { x: el.offsetLeft, w: el.offsetWidth, black: isBlack(m) });
 }
 function fallActive() { return learnMode && songPlaying && !songPaused; }
-function startFall() { if (learnMode) { fallCanvas.classList.add('on'); if (!fallRAF) fallRAF = requestAnimationFrame(drawFall); } }
+function startFall() { if (learnMode && songPlaying) { fallCanvas.classList.add('on'); if (!fallRAF) fallRAF = requestAnimationFrame(drawFall); } }
 function stopFall() {
     cancelAnimationFrame(fallRAF); fallRAF = 0;
     const g = fallCanvas.getContext('2d');
