@@ -1190,14 +1190,14 @@ function drawFall() {
         if (bottom < 0 || top > H) continue;
         const h = Math.max(3, bottom - top);
         // the violin line falls in cyan, whatever the label mode — it is the
-        // only lane that never lights the keys, and no string colour is cyan
+        // only lane that never lights the keys, and no other bar is cyan
         const isVn = e[5] === 'vn';
         const f = (violinMode || isVn) ? violinFinger(m) : null;
-        // in violin mode a bar is coloured by its string, and notes off the
-        // violin (the piano accompaniment) recede so the melody line reads
+        // piano bars are split by hand at middle C: right hand bright, left
+        // hand deep, one purple family in both label modes — reading a duet
+        // is not served by forty hues of piano
         g.fillStyle = isVn ? (rect.black ? '#17a2b4' : '#3ed3e3')
-                        : violinMode ? (f ? (rect.black ? f.c : f.cl) : '#4b4560')
-                                     : (rect.black ? '#8f6bff' : '#b49bff');
+                           : (m >= 60 ? '#b49bff' : '#8f6bff');
         const x = rect.x + 1, w = Math.max(2, rect.w - 2), rad = Math.min(4, w / 2);
         g.beginPath(); g.moveTo(x + rad, top); g.arcTo(x + w, top, x + w, top + rad, rad);
         g.arcTo(x + w, bottom, x + w - rad, bottom, rad); g.arcTo(x, bottom, x, bottom - rad, rad);
