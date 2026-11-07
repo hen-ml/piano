@@ -28,7 +28,7 @@ The piano is the accompaniment, but the notes are still piano notes. Violin mode
 
 It shows first position only. It doesn't choose fingerings for you or read sheet music — it shows where the note sits, and you decide how to play it.
 
-Built-in **Lightly Row** is the exception arranged for duet: the violin line sounds through its own bowed synth (slow attack, vibrato, sawtooth stack), never lights the piano keys, and falls in gold bars — the piano part plays and lights as usual. At pitches both parts share, the violin takes the note under the bow.
+Built-in **Lightly Row** is the exception arranged for duet: the violin line sounds through its own bowed synth (slow attack, vibrato, sawtooth stack), never lights the piano keys, and falls in cyan bars — the piano part plays and lights as usual. At pitches both parts share, the violin takes the note under the bow.
 
 ## Run it locally
 
