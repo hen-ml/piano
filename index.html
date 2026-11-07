@@ -238,7 +238,7 @@
     <div id="toolbar">
         <div class="btn icon on" id="sustainBtn" title="Sustain (hold notes) — Space">🦶</div>
         <div class="btn icon" id="labelBtn" title="Toggle note labels">🔤</div>
-        <div class="btn icon" id="violinBtn" title="Violin mode — labels and falling notes show first-position fingering (A0 A1 A2 A3, E0 E1 E2 E3…)">🎻</div>
+        <div class="btn icon" id="violinBtn" title="Violin mode — keys and falling notes show first-position fingering (A0=A A1=B A2=C# A3=D, E0=E E1=F# E2=G E3=A…); notes outside the position stay blank">🎻</div>
         <div class="btn icon" id="learnBtn" title="Learn mode — notes fall onto the keys so you can play along">🎓</div>
         <div class="btn icon rec" id="recBtn" title="Record your playing">⏺</div>
         <div id="sizeSel" title="How many octaves to show">
@@ -514,12 +514,14 @@ let kbOctave = 4;                // base octave for computer-keyboard mapping
 // ---------------------------------------------------------------------------
 //  VIOLIN FINGERING — first position
 //
-//  The four strings are tuned in fifths, and in first position each one is
-//  covered by four fingers over the seven semitones up to the next string:
-//  finger 1 and 2 each have a low and a high placement (a half step apart),
-//  which is why 8 semitones map onto 5 labels. A note is named by the highest
-//  string that can reach it without leaving first position, so A4 is the open
-//  A ("A0") rather than a stopped note on D, and C#5 is "A2".
+//  Four notes per string: the open string plus three fingers. Those notes are
+//  the notes of the first-position scale, NOT every chromatic semitone up to
+//  the next string — A0 is A, A1 is B, A2 is C#, A3 is D, and E0 is E, E1 is
+//  F#, E2 is G, E3 is A. The in-between keys (A#, C natural, D#, …) have no
+//  finger of their own in this position, so they stay blank rather than
+//  borrowing a neighbour's label: a black key is labelled only when that
+//  sharp is one of the four notes (C# and F# here). Notes below the G string
+//  or above third finger on E stay blank too — no invented shifts.
 // ---------------------------------------------------------------------------
 const VIOLIN_STRINGS = [    // c = ink on white keys, cl = ink on black keys / falling bars
     { n: 'G', open: 55, c: '#a76a10', cl: '#f0b055' },
@@ -527,13 +529,20 @@ const VIOLIN_STRINGS = [    // c = ink on white keys, cl = ink on black keys / f
     { n: 'A', open: 69, c: '#5b34b8', cl: '#b79bff' },
     { n: 'E', open: 76, c: '#b62c66', cl: '#ff86b0' },
 ];
-const FINGER_OF = [0, 1, 1, 2, 2, 3, 3, 4];   // semitones above the open string -> finger
+// [midi, string index, finger] — the sixteen first-position notes, four per
+// string, running up the D-major scale from G3 to A5.
+const FIRST_POSITION = [
+    [55, 0, 0], [57, 0, 1], [59, 0, 2], [61, 0, 3],   // G3  A3  B3  C#4
+    [62, 1, 0], [64, 1, 1], [66, 1, 2], [67, 1, 3],   // D4  E4  F#4 G4
+    [69, 2, 0], [71, 2, 1], [73, 2, 2], [74, 2, 3],   // A4  B4  C#5 D5
+    [76, 3, 0], [78, 3, 1], [79, 3, 2], [81, 3, 3],   // E5  F#5 G5  A5
+];
+const VIOLIN_FINGERS = new Map(FIRST_POSITION.map(([midi, s, finger]) => {
+    const str = VIOLIN_STRINGS[s];
+    return [midi, { text: str.n + finger, c: str.c, cl: str.cl }];
+}));
 function violinFinger(midi) {
-    for (let i = VIOLIN_STRINGS.length - 1; i >= 0; i--) {
-        const s = VIOLIN_STRINGS[i], d = midi - s.open;
-        if (d >= 0 && d <= 7) return { text: s.n + FINGER_OF[d], c: s.c, cl: s.cl };
-    }
-    return null;            // below the G string or above first position — unlabelled
+    return VIOLIN_FINGERS.get(midi) || null;   // not a first-position note — unlabelled
 }
 
 // Labels are a view over the keys, so switching modes just rewrites them.
