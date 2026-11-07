@@ -215,6 +215,9 @@
             background: #241a3a; border-color: #6d4bd8; color: #fff; }
         .songRow .del { margin-left: 8px; padding: 0 5px; border-radius: 6px; color: #8a8f99; }
         .songRow .del:hover { color: #ff6b6b; background: #33333e; }
+        .songsFoot { margin-top: 10px; font-size: 11px; line-height: 1.6; color: #6b707c; text-align: center; }
+        .songsFoot a { color: #8f8aff; text-decoration: none; }
+        .songsFoot a:hover { text-decoration: underline; }
         @media (max-width: 640px) { #hint, .seg.hideSm { display: none; } .seg { padding: 8px 11px; }
             .lab { font-size: 10px; } .black .lab { font-size: 8px; }   /* fingering still fits a phone-width black key */
         }
@@ -281,6 +284,9 @@
         <div class="btn" id="uploadBtn">⬆ Import MIDI / MusicXML…</div>
         <input id="midiInput" type="file" accept=".mid,.midi,.musicxml,.xml,.mxl,audio/midi,audio/x-midi,application/vnd.recordare.musicxml+xml,application/vnd.recordare.musicxml,application/xml,text/xml" multiple style="display:none">
         <div class="btn" id="songsClose">Close</div>
+        <div class="songsFoot">Free &amp; open source (MIT) · note data CC0<br>
+            <a href="https://github.com/hen-ml/piano" target="_blank" rel="noopener">hen-ml/piano · ♥ support this project</a>
+        </div>
     </div>
 </div>
 
@@ -779,7 +785,7 @@ document.getElementById('instrBtn').addEventListener('click', () => {
     document.getElementById('instrName').textContent = INSTRUMENTS[instrument].name;
 });
 document.getElementById('gear').addEventListener('click', () => {
-    alert('🎹 Web Piano\n\n• Play with mouse, multi-touch, or your computer keyboard\n• Polyphonic: press many keys at once for chords\n• Sustain pedal 🦶 (Space) holds notes\n• Z / X shift the keyboard octave\n• Tap the instrument name to change the sound');
+    alert('🎹 Web Piano\n\n• Play with mouse, multi-touch, or your computer keyboard\n• Polyphonic: press many keys at once for chords\n• Sustain pedal 🦶 (Space) holds notes\n• Z / X shift the keyboard octave\n• Tap the instrument name to change the sound\n\nFree & open source (MIT) — github.com/hen-ml/piano');
 });
 document.getElementById('segChord').addEventListener('click', () => {
     // quick demo: play a C major chord so you can hear polyphony
