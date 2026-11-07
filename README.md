@@ -56,7 +56,7 @@ Otherwise the app ships no songbook: it accepts any MIDI or MusicXML file you ow
 
 ## License
 
-**Code:** [MIT](LICENSE) © Ming-Hen (Henry) Tsai · **Built-in song note data:** CC0 1.0 Public Domain Dedication — the melodies (Bayly, Pachelbel, traditional) are public domain, and the transcribed note events are dedicated to the public domain too. If it helps your practice, the ♥ Sponsor button on the repo is the way to say thanks.
+**Code:** [MIT](LICENSE) © Ming-Hen (Henry) Tsai · **Built-in song note data:** CC0 1.0 Public Domain Dedication — the melodies (Bayly, Pachelbel, traditional) are public domain, and the transcribed note events are dedicated to the public domain too.
 
 ## More experiments
 
