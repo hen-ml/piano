@@ -872,9 +872,11 @@ const SONGS = {
     lightlyrow: { name: 'Lightly Row', by: 'trad. American · Suzuki Violin, Bk 1 · duet',
         // Violin & piano duet in A major (traditional, public domain/CC0).
         // Event shape: [startMs, midi, durMs, velocity, retriggerIndex, part?] —
-        // 'vn' is the violin line: it sounds through the bowed synth, never
-        // lights the keys, and falls in cyan. Shared pitches go to the violin.
-        events: [[0,45,1200,80,0],[0,61,600,80,0],[0,76,600,88,0,'vn'],[600,64,600,80,0],[600,73,600,88,0,'vn'],[1200,52,1200,80,0],[1200,69,600,80,0],[1200,73,1200,88,1,'vn'],[1800,64,600,80,1],[2400,40,1200,80,0],[2400,59,600,80,0],[2400,74,600,88,0,'vn'],[3000,62,600,80,0],[3000,71,600,88,0,'vn'],[3600,52,1200,80,1],[3600,68,600,80,0],[3600,71,1200,88,1,'vn'],[4200,62,600,80,1],[4800,45,1200,80,1],[4800,61,600,80,1],[4800,69,600,88,1,'vn'],[5400,64,600,80,2],[5400,71,600,88,2,'vn'],[6000,52,1200,80,2],[6000,69,600,80,2],[6000,73,600,88,2,'vn'],[6600,64,600,80,3],[6600,74,600,88,1,'vn'],[7200,45,1200,80,2],[7200,61,600,80,2],[7200,76,600,88,1,'vn'],[7800,64,600,80,4],[7800,76,600,88,2,'vn'],[8400,52,1200,80,3],[8400,69,600,80,3],[8400,76,1200,88,3,'vn'],[9000,64,600,80,5],[9600,45,1200,80,3],[9600,61,600,80,3],[9600,76,600,88,4,'vn'],[10200,64,600,80,6],[10200,73,600,88,3,'vn'],[10800,52,1200,80,4],[10800,69,600,80,4],[10800,73,1200,88,4,'vn'],[11400,64,600,80,7],[12000,40,1200,80,1],[12000,59,600,80,1],[12000,74,600,88,2,'vn'],[12600,62,600,80,2],[12600,71,600,88,3,'vn'],[13200,52,1200,80,5],[13200,68,600,80,1],[13200,71,1200,88,4,'vn'],[13800,62,600,80,3],[14400,45,1200,80,4],[14400,61,600,80,4],[14400,69,600,88,5,'vn'],[15000,64,600,80,8],[15000,73,600,88,5,'vn'],[15600,40,1200,80,2],[15600,59,600,80,2],[15600,76,600,88,5,'vn'],[16200,68,600,80,2],[16200,76,600,88,6,'vn'],[16800,45,1200,80,5],[16800,61,600,80,5],[16800,69,600,88,6,'vn'],[17400,64,600,80,9],[17400,69,600,88,7,'vn'],[18000,45,1200,80,6],[18000,61,1200,80,6],[18000,64,1200,80,10],[18000,69,1200,88,8,'vn'],[19200,40,1200,80,3],[19200,59,600,80,3],[19200,71,600,88,5,'vn'],[19800,62,600,80,4],[19800,71,600,88,6,'vn'],[20400,52,1200,80,6],[20400,68,600,80,3],[20400,71,600,88,7,'vn'],[21000,62,600,80,5],[21000,71,600,88,8,'vn'],[21600,40,1200,80,4],[21600,59,600,80,4],[21600,71,600,88,9,'vn'],[22200,62,600,80,6],[22200,73,600,88,6,'vn'],[22800,52,1200,80,7],[22800,68,600,80,4],[22800,74,1200,88,3,'vn'],[23400,62,600,80,7],[24000,45,1200,80,7],[24000,61,600,80,7],[24000,73,600,88,7,'vn'],[24600,64,600,80,11],[24600,73,600,88,8,'vn'],[25200,52,1200,80,8],[25200,69,600,80,9],[25200,73,600,88,9,'vn'],[25800,64,600,80,12],[25800,73,600,88,10,'vn'],[26400,45,1200,80,8],[26400,61,600,80,8],[26400,73,600,88,11,'vn'],[27000,64,600,80,13],[27000,74,600,88,4,'vn'],[27600,52,1200,80,9],[27600,69,600,80,10],[27600,76,1200,88,7,'vn'],[28200,64,600,80,14],[28800,45,1200,80,9],[28800,61,600,80,9],[28800,76,600,88,8,'vn'],[29400,64,600,80,15],[29400,73,600,88,12,'vn'],[30000,52,1200,80,10],[30000,69,600,80,11],[30000,73,1200,88,13,'vn'],[30600,64,600,80,16],[31200,40,1200,80,5],[31200,59,600,80,5],[31200,74,600,88,5,'vn'],[31800,62,600,80,8],[31800,71,600,88,10,'vn'],[32400,52,1200,80,11],[32400,68,600,80,5],[32400,71,1200,88,11,'vn'],[33000,62,600,80,9],[33600,45,1200,80,10],[33600,61,600,80,10],[33600,69,600,88,12,'vn'],[34200,64,600,80,17],[34200,73,600,88,14,'vn'],[34800,40,1200,80,6],[34800,59,600,80,6],[34800,76,600,88,9,'vn'],[35400,68,600,80,6],[35400,76,600,88,10,'vn'],[36000,45,2400,80,11],[36000,57,2400,80,0],[36000,61,2400,80,11],[36000,64,2400,80,18],[36000,69,2400,88,13,'vn']]},
+        // 'vn' is the violin line (bowed synth, never lights the keys, cyan);
+        // 'rh'/'lh' come off the score's grand staff (treble/F-clef), so the
+        // right hand falls green and the left purple even across middle C.
+        // Shared pitches go to the violin.
+        events: [[0,45,1200,80,0,'lh'],[0,61,600,80,0,'rh'],[0,76,600,88,0,'vn'],[600,64,600,80,0,'rh'],[600,73,600,88,0,'vn'],[1200,52,1200,80,0,'lh'],[1200,69,600,80,0,'rh'],[1200,73,1200,88,1,'vn'],[1800,64,600,80,1,'rh'],[2400,40,1200,80,0,'lh'],[2400,59,600,80,0,'rh'],[2400,74,600,88,0,'vn'],[3000,62,600,80,0,'rh'],[3000,71,600,88,0,'vn'],[3600,52,1200,80,1,'lh'],[3600,68,600,80,0,'rh'],[3600,71,1200,88,1,'vn'],[4200,62,600,80,1,'rh'],[4800,45,1200,80,1,'lh'],[4800,61,600,80,1,'rh'],[4800,69,600,88,1,'vn'],[5400,64,600,80,2,'rh'],[5400,71,600,88,2,'vn'],[6000,52,1200,80,2,'lh'],[6000,69,600,80,2,'rh'],[6000,73,600,88,2,'vn'],[6600,64,600,80,3,'rh'],[6600,74,600,88,1,'vn'],[7200,45,1200,80,2,'lh'],[7200,61,600,80,2,'rh'],[7200,76,600,88,1,'vn'],[7800,64,600,80,4,'rh'],[7800,76,600,88,2,'vn'],[8400,52,1200,80,3,'lh'],[8400,69,600,80,3,'rh'],[8400,76,1200,88,3,'vn'],[9000,64,600,80,5,'rh'],[9600,45,1200,80,3,'lh'],[9600,61,600,80,3,'rh'],[9600,76,600,88,4,'vn'],[10200,64,600,80,6,'rh'],[10200,73,600,88,3,'vn'],[10800,52,1200,80,4,'lh'],[10800,69,600,80,4,'rh'],[10800,73,1200,88,4,'vn'],[11400,64,600,80,7,'rh'],[12000,40,1200,80,1,'lh'],[12000,59,600,80,1,'rh'],[12000,74,600,88,2,'vn'],[12600,62,600,80,2,'rh'],[12600,71,600,88,3,'vn'],[13200,52,1200,80,5,'lh'],[13200,68,600,80,1,'rh'],[13200,71,1200,88,4,'vn'],[13800,62,600,80,3,'rh'],[14400,45,1200,80,4,'lh'],[14400,61,600,80,4,'rh'],[14400,69,600,88,5,'vn'],[15000,64,600,80,8,'rh'],[15000,73,600,88,5,'vn'],[15600,40,1200,80,2,'lh'],[15600,59,600,80,2,'rh'],[15600,76,600,88,5,'vn'],[16200,68,600,80,2,'rh'],[16200,76,600,88,6,'vn'],[16800,45,1200,80,5,'lh'],[16800,61,600,80,5,'rh'],[16800,69,600,88,6,'vn'],[17400,64,600,80,9,'rh'],[17400,69,600,88,7,'vn'],[18000,45,1200,80,6,'lh'],[18000,61,1200,80,6,'rh'],[18000,64,1200,80,10,'rh'],[18000,69,1200,88,8,'vn'],[19200,40,1200,80,3,'lh'],[19200,59,600,80,3,'rh'],[19200,71,600,88,5,'vn'],[19800,62,600,80,4,'rh'],[19800,71,600,88,6,'vn'],[20400,52,1200,80,6,'lh'],[20400,68,600,80,3,'rh'],[20400,71,600,88,7,'vn'],[21000,62,600,80,5,'rh'],[21000,71,600,88,8,'vn'],[21600,40,1200,80,4,'lh'],[21600,59,600,80,4,'rh'],[21600,71,600,88,9,'vn'],[22200,62,600,80,6,'rh'],[22200,73,600,88,6,'vn'],[22800,52,1200,80,7,'lh'],[22800,68,600,80,4,'rh'],[22800,74,1200,88,3,'vn'],[23400,62,600,80,7,'rh'],[24000,45,1200,80,7,'lh'],[24000,61,600,80,7,'rh'],[24000,73,600,88,7,'vn'],[24600,64,600,80,11,'rh'],[24600,73,600,88,8,'vn'],[25200,52,1200,80,8,'lh'],[25200,69,600,80,9,'rh'],[25200,73,600,88,9,'vn'],[25800,64,600,80,12,'rh'],[25800,73,600,88,10,'vn'],[26400,45,1200,80,8,'lh'],[26400,61,600,80,8,'rh'],[26400,73,600,88,11,'vn'],[27000,64,600,80,13,'rh'],[27000,74,600,88,4,'vn'],[27600,52,1200,80,9,'lh'],[27600,69,600,80,10,'rh'],[27600,76,1200,88,7,'vn'],[28200,64,600,80,14,'rh'],[28800,45,1200,80,9,'lh'],[28800,61,600,80,9,'rh'],[28800,76,600,88,8,'vn'],[29400,64,600,80,15,'rh'],[29400,73,600,88,12,'vn'],[30000,52,1200,80,10,'lh'],[30000,69,600,80,11,'rh'],[30000,73,1200,88,13,'vn'],[30600,64,600,80,16,'rh'],[31200,40,1200,80,5,'lh'],[31200,59,600,80,5,'rh'],[31200,74,600,88,5,'vn'],[31800,62,600,80,8,'rh'],[31800,71,600,88,10,'vn'],[32400,52,1200,80,11,'lh'],[32400,68,600,80,5,'rh'],[32400,71,1200,88,11,'vn'],[33000,62,600,80,9,'rh'],[33600,45,1200,80,10,'lh'],[33600,61,600,80,10,'rh'],[33600,69,600,88,12,'vn'],[34200,64,600,80,17,'rh'],[34200,73,600,88,14,'vn'],[34800,40,1200,80,6,'lh'],[34800,59,600,80,6,'rh'],[34800,76,600,88,9,'vn'],[35400,68,600,80,6,'rh'],[35400,76,600,88,10,'vn'],[36000,45,2400,80,11,'lh'],[36000,57,2400,80,0,'lh'],[36000,61,2400,80,11,'rh'],[36000,64,2400,80,18,'rh'],[36000,69,2400,88,13,'vn']]},
     clairdelune: { name: 'Clair de Lune', by: 'Debussy · Suite bergamasque',
         // Full performance transcribed from the score’s MIDI — D♭ major, Andante
         // très expressif con sordina, the rubato/accelerando already baked into the
@@ -1189,15 +1191,13 @@ function drawFall() {
         const top = bottom - Math.max(40, e[2]) * pxMs;
         if (bottom < 0 || top > H) continue;
         const h = Math.max(3, bottom - top);
-        // the violin line falls in cyan, whatever the label mode — it is the
-        // only lane that never lights the keys, and no other bar is cyan
+        // one hue per voice: cyan = violin, green = right hand (C4+ if the
+        // score doesn't say otherwise, e.g. single-staff pieces), purple = left
         const isVn = e[5] === 'vn';
         const f = (violinMode || isVn) ? violinFinger(m) : null;
-        // piano bars are split by hand at middle C: right hand bright, left
-        // hand deep, one purple family in both label modes — reading a duet
-        // is not served by forty hues of piano
+        const isRH = e[5] ? e[5] === 'rh' : m >= 60;
         g.fillStyle = isVn ? (rect.black ? '#17a2b4' : '#3ed3e3')
-                           : (m >= 60 ? '#b49bff' : '#8f6bff');
+                           : isRH ? '#4ade80' : '#8f6bff';
         const x = rect.x + 1, w = Math.max(2, rect.w - 2), rad = Math.min(4, w / 2);
         g.beginPath(); g.moveTo(x + rad, top); g.arcTo(x + w, top, x + w, top + rad, rad);
         g.arcTo(x + w, bottom, x + w - rad, bottom, rad); g.arcTo(x, bottom, x, bottom - rad, rad);
@@ -1348,12 +1348,26 @@ function parseMusicXML(text) {
     const parts = xmlChildren(root, 'part');
     if (!parts.length) throw new Error('no parts in the score');
 
+    // Which parts are violins? Trust the score's own words: part/instrument
+    // name mentions violin (catches "Violin I", "Violino"), or GM program 41
+    // (1-based) — that is how the file's violin part is declared.
+    const vnById = new Map();
+    for (const sp of xmlChildren(xmlChild(root, 'part-list'), 'score-part')) {
+        const id = sp.getAttribute('id');
+        const name = (xmlText(xmlChild(sp, 'part-name')) + ' ' +
+                      xmlText(xmlChild(xmlChild(sp, 'score-instrument'), 'instrument-name'))).toLowerCase();
+        const prog = +xmlText(xmlChild(xmlChild(sp, 'midi-instrument'), 'midi-program'));
+        vnById.set(id, /violin|violine/.test(name) || prog === 41);
+    }
+
     const tempoMap = new Map();   // quarter-note position -> BPM
     const pedalQ = [];            // [quarter-note position, down]
-    const rawNotes = [];          // { start, dur, midi, voice, tieStart, tieStop, part }
+    const rawNotes = [];          // { start, dur, midi, voice, tieStart, tieStop, part, role }
 
     for (let pi = 0; pi < parts.length; pi++) {
         let divisions = 1;
+        let grandstaff = false;   // part declared <staves>2>+</staves> → staff 1 = RH, 2 = LH
+        const vnPart = vnById.get(parts[pi].getAttribute('id')) === true;
         let cursor = 0;           // quarter notes from the start of the part
         let lastStart = 0;
 
@@ -1367,6 +1381,8 @@ function parseMusicXML(text) {
                 if (name === 'attributes') {
                     const d = +xmlText(xmlChild(el, 'divisions'));
                     if (d > 0) divisions = d;
+                    const st = +xmlText(xmlChild(el, 'staves'));
+                    if (st >= 2) grandstaff = true;
                 } else if (name === 'direction' || name === 'sound') {
                     let bpm = 0;
                     if (name === 'sound') {
@@ -1431,6 +1447,11 @@ function parseMusicXML(text) {
                         start, dur: durQ, midi,
                         voice: xmlText(xmlChild(el, 'voice')) || '1',
                         tieStart, tieStop, part: pi,
+                        // tag from the score: violin parts are the bowed voice;
+                        // a grand staff tells the hands apart
+                        role: vnPart ? 'vn'
+                            : grandstaff ? ((xmlText(xmlChild(el, 'staff')) || '1') === '2' ? 'lh' : 'rh')
+                            : '',
                     });
                 }
             }
@@ -1456,7 +1477,7 @@ function parseMusicXML(text) {
     rawNotes.sort((a, b) => a.start - b.start || a.midi - b.midi);
     const open = new Map(), merged = [];
     for (const n of rawNotes) {
-        const key = n.part + ':' + n.voice + ':' + n.midi;
+        const key = n.part + ':' + n.voice + ':' + n.midi + ':' + (n.role || '');
         if (n.tieStop) {
             const prev = open.get(key);
             if (prev && Math.abs(prev.start + prev.dur - n.start) < 1e-6) {
@@ -1465,7 +1486,7 @@ function parseMusicXML(text) {
                 continue;
             }
         }
-        const note = { start: n.start, dur: n.dur, midi: n.midi };
+        const note = { start: n.start, dur: n.dur, midi: n.midi, role: n.role };
         merged.push(note);
         if (n.tieStart) open.set(key, note); else open.delete(key);
     }
@@ -1474,13 +1495,19 @@ function parseMusicXML(text) {
     for (const n of merged) {
         const s = qToMs(n.start), e = qToMs(n.start + n.dur);
         const k = occ[n.midi] | 0; occ[n.midi] = k + 1;
-        events.push([Math.round(s), n.midi, Math.max(1, Math.round(e - s)), 90, k]);
+        // a note keeps whatever the score told us: 'vn', 'rh', 'lh' — or
+        // nothing, which falls back to the middle-C split at draw time
+        const ev = [Math.round(s), n.midi, Math.max(1, Math.round(e - s)), 90, k];
+        if (n.role) ev.push(n.role);
+        events.push(ev);
     }
-    // de-dupe exact (startMs, pitch) unisons across parts, keep the longer
+    // de-dupe exact (startMs, pitch) unisons across parts, keep the longer —
+    // except a violin-tagged note wins its unison, as does a hand tag over none
     const seen = new Map();
+    const tagRank = e => e[5] === 'vn' ? 2 : (e[5] ? 1 : 0);   // vn beats a hand tag beats untagged
     for (const e of events) {
         const key = e[0] + ':' + e[1], q = seen.get(key);
-        if (!q || e[2] > q[2]) seen.set(key, e);
+        if (!q || tagRank(e) > tagRank(q) || (tagRank(e) === tagRank(q) && e[2] > q[2])) seen.set(key, e);
     }
     const out = [...seen.values()].sort((a, b) => a[0] - b[0] || a[1] - b[1]);
 

@@ -28,7 +28,7 @@ The piano is the accompaniment, but the notes are still piano notes. Violin mode
 
 It shows first position only. It doesn't choose fingerings for you or read sheet music — it shows where the note sits, and you decide how to play it.
 
-Built-in **Lightly Row** is the exception arranged for duet: the violin line sounds through its own bowed synth (slow attack, vibrato, sawtooth stack), never lights the piano keys, and falls in cyan bars. Piano bars are split by hand at middle C — bright purple for the right hand, deep for the left. At pitches both parts share, the violin takes the note under the bow.
+Built-in **Lightly Row** is the exception arranged for duet: the violin line sounds through its own bowed synth (slow attack, vibrato, sawtooth stack), never lights the piano keys, and falls in cyan bars. Piano bars are split by hand using the score's grand staff — green for the treble staff (right hand), purple for the bass staff (left hand). MusicXML imports get the same treatment automatically: violin parts (by part/instrument name or GM program 41) are tagged as the bowed voice, and a part declaring `<staves>2</staves>` has its hands split the same way. Single-staff scores fall back to a middle-C split. At pitches both parts share, the violin takes the note under the bow.
 
 ## Run it locally
 
