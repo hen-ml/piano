@@ -326,7 +326,7 @@ const MAX_VOICES = 48;
 let volume = 0.7;
 
 const INSTRUMENTS = {
-    grand:   { name: 'Grand Piano', partials: [[1, 1, 'triangle'], [2, 0.35, 'sine'], [3, 0.15, 'sine'], [4, 0.075, 'sine'], [5, 0.04, 'sine'], [7, 0.02, 'sine']], decay: 6.2, cutoff: 4600, sampleCutoff: 14500, release: 0.28, inharm: 0.0005, hammer: 0.5 },
+    grand:   { name: 'Grand Piano', partials: [[1, 1, 'triangle'], [2, 0.35, 'sine'], [3, 0.15, 'sine'], [4, 0.075, 'sine'], [5, 0.04, 'sine'], [7, 0.02, 'sine']], decay: 6.2, cutoff: 4600, sampleCutoff: 14500, release: 0.18, inharm: 0.0005, hammer: 0.5 },
     electric:{ name: 'Electric Piano', partials: [[1, 1, 'sine'], [2, 0.5, 'sine'], [3, 0.12, 'sine'], [4, 0.14, 'triangle']], decay: 2.6, cutoff: 4200, release: 0.34, inharm: 0.0003, hammer: 0.25 },
     organ:   { name: 'Church Organ', partials: [[1, 0.9, 'sine'], [2, 0.7, 'sine'], [3, 0.5, 'sine'], [4, 0.3, 'sine']], decay: 40, cutoff: 6000, release: 0.12, hold: true },
     synth:   { name: 'Synth Lead', partials: [[1, 1, 'sawtooth'], [2, 0.25, 'square']], decay: 30, cutoff: 3400, release: 0.18, hold: true },
@@ -363,47 +363,156 @@ function ensureAudio() {
     noiseBuf = ac.createBuffer(1, nlen, ac.sampleRate);
     const nd = noiseBuf.getChannelData(0);
     for (let i = 0; i < nlen; i++) nd[i] = Math.random() * 2 - 1;
+    warmSamples(); // also handles browsers without an offline decoding context
 }
 const mtof = m => 440 * Math.pow(2, (m - 69) / 12);
 
-// Sparse chromatic anchors keep the bundled sample set small. Each held note
-// is pitch-shifted from its nearest recording; the original oscillator voices
-// remain available while samples decode and for the electric/organ/synth presets.
+// Three-semitone piano anchors keep transposition to at most one semitone over
+// the 88-key range. The extra violin anchors also reduce pitch/time stretching.
+// "Ds" and "Fs" in the filenames avoid '#' being interpreted as a URL fragment.
 const SAMPLE_FILES = {
     piano: [
-        [21, 'A0'], [24, 'C1'], [33, 'A1'], [36, 'C2'], [45, 'A2'], [48, 'C3'],
-        [57, 'A3'], [60, 'C4'], [69, 'A4'], [72, 'C5'], [81, 'A5'], [84, 'C6'],
-        [93, 'A6'], [96, 'C7'], [105, 'A7'], [108, 'C8'],
+        [21, 'A0'], [24, 'C1'], [27, 'Ds1'], [30, 'Fs1'], [33, 'A1'],
+        [36, 'C2'], [39, 'Ds2'], [42, 'Fs2'], [45, 'A2'], [48, 'C3'],
+        [51, 'Ds3'], [54, 'Fs3'], [57, 'A3'], [60, 'C4'], [63, 'Ds4'],
+        [66, 'Fs4'], [69, 'A4'], [72, 'C5'], [75, 'Ds5'], [78, 'Fs5'],
+        [81, 'A5'], [84, 'C6'], [87, 'Ds6'], [90, 'Fs6'], [93, 'A6'],
+        [96, 'C7'], [99, 'Ds7'], [102, 'Fs7'], [105, 'A7'], [108, 'C8'],
     ].map(([midi, name]) => [midi, `./audio/piano/${name}.mp3`]),
     violin: [
-        [55, 'G3'], [60, 'C4'], [67, 'G4'], [72, 'C5'],
-        [79, 'G5'], [84, 'C6'], [91, 'G6'], [96, 'C7'],
+        [55, 'G3'], [57, 'A3'], [60, 'C4'], [64, 'E4'], [67, 'G4'],
+        [69, 'A4'], [72, 'C5'], [76, 'E5'], [79, 'G5'], [81, 'A5'],
+        [84, 'C6'], [88, 'E6'], [91, 'G6'], [93, 'A6'], [96, 'C7'],
     ].map(([midi, name]) => [midi, `./audio/violin/${name}.mp3`]),
 };
 const sampleBuffers = { piano: new Map(), violin: new Map() };
 const samplePending = { piano: new Map(), violin: new Map() };
-function nearestSample(family, midi) {
+const sampleFailures = { piano: new Map(), violin: new Map() };
+const sampleQueue = [], sampleLRU = new Map();
+const SAMPLE_CACHE_LIMIT = 64 * 1024 * 1024; // decoded PCM, not compressed file size
+const SAMPLE_LOAD_LIMIT = 3;
+let sampleCacheBytes = 0, sampleLoads = 0, decodeContext = null, samplesWarmed = false;
+
+function sampleRoot(family, midi) {
     let root = null, url = null, distance = Infinity;
     for (const [note, path] of SAMPLE_FILES[family]) {
         const d = Math.abs(note - midi);
         if (d < distance) { root = note; url = path; distance = d; }
     }
-    if (root == null) return null;
-    const buffer = sampleBuffers[family].get(root);
-    if (buffer) return { buffer, rate: Math.pow(2, (midi - root) / 12) };
-    // Decode only the nearest note on demand: this keeps startup and memory
-    // use small, and the first strike gracefully uses the synth while it loads.
-    if (ac && !samplePending[family].has(root)) {
-        const pending = fetch(url).then(r => {
-            if (!r.ok) throw new Error(`sample fetch failed: ${url} (${r.status})`);
-            return r.arrayBuffer();
-        }).then(bytes => ac.decodeAudioData(bytes))
-            .then(decoded => sampleBuffers[family].set(root, decoded))
-            .catch(() => {})
-            .finally(() => samplePending[family].delete(root));
-        samplePending[family].set(root, pending);
+    return root == null ? null : { root, url };
+}
+function sampleDecoder() {
+    if (ac) return ac;
+    // Decode ahead of the first gesture without starting an audible context.
+    // AudioBuffers can be played by a different context, even at another rate.
+    const Offline = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+    if (!decodeContext && Offline) {
+        try { decodeContext = new Offline(1, 1, 44100); } catch (e) {}
     }
-    return null;
+    return decodeContext;
+}
+function cachedSample(family, root) {
+    const buffer = sampleBuffers[family].get(root);
+    if (buffer) {
+        const key = `${family}:${root}`, entry = sampleLRU.get(key);
+        if (entry) { sampleLRU.delete(key); sampleLRU.set(key, entry); }
+    }
+    return buffer;
+}
+function rememberSample(family, root, buffer) {
+    const key = `${family}:${root}`, old = sampleLRU.get(key);
+    if (old) { sampleCacheBytes -= old.bytes; sampleLRU.delete(key); }
+    const bytes = buffer.length * buffer.numberOfChannels * 4;
+    while (sampleLRU.size && sampleCacheBytes + bytes > SAMPLE_CACHE_LIMIT) {
+        const [oldKey, entry] = sampleLRU.entries().next().value;
+        sampleLRU.delete(oldKey);
+        sampleBuffers[entry.family].delete(entry.root);
+        sampleCacheBytes -= entry.bytes;
+    }
+    sampleBuffers[family].set(root, buffer);
+    sampleLRU.set(key, { family, root, bytes });
+    sampleCacheBytes += bytes;
+}
+function runSampleQueue() {
+    while (sampleLoads < SAMPLE_LOAD_LIMIT && sampleQueue.length) {
+        const job = sampleQueue.shift();
+        job.started = true; sampleLoads++;
+        (async () => {
+            let buffer = null;
+            try {
+                const response = await fetch(job.url);
+                if (!response.ok) throw new Error(`sample fetch failed: ${response.status}`);
+                buffer = await job.decoder.decodeAudioData(await response.arrayBuffer());
+                rememberSample(job.family, job.root, buffer);
+                sampleFailures[job.family].delete(job.root);
+            } catch (e) {
+                // Offline or a bad recording: keep the instrument playable and
+                // allow another attempt later, without retrying every song tick.
+                sampleFailures[job.family].set(job.root, Date.now() + 5000);
+            } finally {
+                samplePending[job.family].delete(job.root);
+                sampleLoads--;
+                job.resolve(buffer);
+                runSampleQueue();
+            }
+        })();
+    }
+}
+function requestSample(family, midi, urgent = false) {
+    const target = sampleRoot(family, midi);
+    if (!target) return Promise.resolve(null);
+    const { root, url } = target;
+    const buffer = cachedSample(family, root);
+    if (buffer) return Promise.resolve(buffer);
+    const pending = samplePending[family].get(root);
+    if (pending) {
+        // A key press jumps ahead of speculative warming, but never duplicates it.
+        if (urgent && !pending.started) {
+            const i = sampleQueue.indexOf(pending);
+            if (i >= 0) { sampleQueue.splice(i, 1); sampleQueue.unshift(pending); }
+        }
+        return pending.promise;
+    }
+    if ((sampleFailures[family].get(root) || 0) > Date.now()) return Promise.resolve(null);
+    const decoder = sampleDecoder();
+    if (!decoder || (!urgent && sampleQueue.length >= 24)) return Promise.resolve(null);
+    let resolve;
+    const promise = new Promise(r => { resolve = r; });
+    const job = { family, root, url, decoder, promise, resolve, started: false };
+    samplePending[family].set(root, job);
+    if (urgent) sampleQueue.unshift(job); else sampleQueue.push(job);
+    runSampleQueue();
+    return promise;
+}
+function warmSamples() {
+    if (samplesWarmed || !sampleDecoder()) return;
+    samplesWarmed = true;
+    // Alternating families gives both the keyboard and duets a useful start.
+    // A bounded queue and LRU keep decoded samples from consuming unbounded RAM.
+    const warm = [
+        ['piano', 60], ['violin', 69], ['piano', 66], ['violin', 72],
+        ['piano', 54], ['violin', 76], ['piano', 72], ['violin', 67],
+        ['piano', 48], ['piano', 78], ['violin', 79], ['piano', 45], ['piano', 84],
+    ];
+    for (const [family, midi] of warm) requestSample(family, midi);
+}
+function nearestSample(family, midi) {
+    const target = sampleRoot(family, midi);
+    if (!target) return null;
+    let root = target.root, buffer = cachedSample(family, root);
+    if (!buffer) {
+        requestSample(family, midi, true);
+        // Prefer a nearby *recording* over an oscillator while the exact anchor
+        // loads. This avoids a sudden synth-to-sample timbre/volume change.
+        let distance = family === 'piano' ? 3 : 2;
+        root = null;
+        for (const note of sampleBuffers[family].keys()) {
+            const d = Math.abs(note - midi);
+            if (d <= distance) { root = note; distance = d; }
+        }
+        if (root != null) buffer = cachedSample(family, root);
+    }
+    return buffer ? { buffer, root, rate: Math.pow(2, (midi - root) / 12) } : null;
 }
 
 function noteOn(midi, vel) {
@@ -417,7 +526,13 @@ function noteOn(midi, vel) {
     const I = INSTRUMENTS[instrument];
     const v = Math.max(0.01, Math.min(1, vel || 1));
     const sample = instrument === 'grand' ? nearestSample('piano', midi) : null;
-    const peak = sample ? 0.29 * Math.pow(v, 1.28) : (0.16 + 0.12 * v);
+    const pianoFallback = instrument === 'grand' && !sample;
+    // The recorded notes are much quieter than full-scale oscillators. Match
+    // their strike level, and let high notes die away more quickly like strings.
+    const treble = Math.pow(2, -Math.max(0, midi - 72) / 20);
+    const pianoDecay = Math.max(0.8, Math.min(8, 3 * Math.pow(2, (60 - midi) / 30)));
+    const peak = sample ? 0.29 * Math.pow(v, 1.28) : pianoFallback
+        ? 0.065 * Math.pow(v, 1.28) * treble : (0.16 + 0.12 * v);
     const g = ac.createGain();
     const filt = ac.createBiquadFilter();
     filt.type = 'lowpass';
@@ -429,10 +544,14 @@ function noteOn(midi, vel) {
     g.connect(filt); filt.connect(master);
     g.gain.setValueAtTime(0.0001, t);
     if (sample) {
-        g.gain.linearRampToValueAtTime(peak, t + 0.012);          // keep the recorded hammer attack intact
+        g.gain.linearRampToValueAtTime(peak, t + 0.003);          // retain the recorded hammer attack
     } else {
-        g.gain.exponentialRampToValueAtTime(peak, t + 0.006);      // synth fallback attack
-        if (!I.hold) {
+        g.gain.exponentialRampToValueAtTime(Math.max(0.0001, peak), t + 0.006);
+        if (pianoFallback) {
+            const initialDecay = 0.35 * Math.pow(2, -Math.max(0, midi - 72) / 12);
+            g.gain.exponentialRampToValueAtTime(Math.max(0.0001, peak * 0.5), t + Math.min(initialDecay, pianoDecay * 0.2));
+            g.gain.exponentialRampToValueAtTime(0.0001, t + pianoDecay);
+        } else if (!I.hold) {
             g.gain.exponentialRampToValueAtTime(peak * 0.3, t + 0.35);
             g.gain.exponentialRampToValueAtTime(0.0001, t + I.decay);
         } else {
@@ -454,6 +573,13 @@ function noteOn(midi, vel) {
             o.frequency.value = f0 * mult * (1 + inh * mult * mult);   // slight inharmonicity
             o.detune.value = (Math.random() * 6 - 3);
             const og = ac.createGain(); og.gain.value = amp;
+            if (pianoFallback && mult > 1) {
+                // Higher partials fade faster, rather than keeping an organ-like
+                // fixed spectrum for the whole lifetime of a struck note.
+                og.gain.setValueAtTime(amp, t);
+                og.gain.exponentialRampToValueAtTime(Math.max(0.001, amp * 0.08),
+                    t + Math.min(pianoDecay, Math.max(0.2, 4 / Math.sqrt(mult))));
+            }
             o.connect(og); og.connect(g);
             o.start(t); oscs.push(o);
         }
@@ -464,13 +590,13 @@ function noteOn(midi, vel) {
         const bp = ac.createBiquadFilter(); bp.type = 'bandpass';
         bp.frequency.value = Math.min(9000, f0 * 3 + 1200); bp.Q.value = 0.7;
         const ng = ac.createGain();
-        const hp = I.hammer * (0.05 + 0.09 * v);
+        const hp = I.hammer * (0.05 + 0.09 * v) * (pianoFallback ? 0.19 * treble : 1);
         ng.gain.setValueAtTime(hp, t);
         ng.gain.exponentialRampToValueAtTime(0.0001, t + 0.045);
         nz.connect(bp); bp.connect(ng); ng.connect(master);
         nz.start(t); nz.stop(t + 0.06);
     }
-    voices.set(id, { oscs, gain: g, midi, id, released: false, hold: I.hold, release: I.release });
+    voices.set(id, { oscs, gain: g, midi, id, peak, released: false, hold: I.hold, release: I.release });
     lightKey(midi, true);
     strikeKey(midi);
     updateVoiceReadout();
@@ -497,7 +623,9 @@ function violinNoteOn(midi, vel) {
     const t = ac.currentTime;
     const v = Math.max(0.01, Math.min(1, vel || 1));
     const sample = nearestSample('violin', midi);
-    const peak = sample ? 0.27 * Math.pow(v, 1.15) : (0.15 + 0.13 * v);
+    // The synthesized sawtooth stack has much more energy than a recording.
+    // Keep it close in level until the real bowed sample is available.
+    const peak = (sample ? 0.27 : 0.09) * Math.pow(v, 1.15);
     const g = ac.createGain();
     const filt = ac.createBiquadFilter();
     filt.type = 'lowpass';
@@ -510,7 +638,7 @@ function violinNoteOn(midi, vel) {
     filt.Q.value = sample ? 0.7 : 1.15;
     g.connect(filt); filt.connect(master);
     g.gain.setValueAtTime(0.0001, t);
-    if (sample) g.gain.linearRampToValueAtTime(peak, t + 0.035);
+    if (sample) g.gain.linearRampToValueAtTime(peak, t + 0.005); // the recording supplies the bow attack
     else {
         g.gain.exponentialRampToValueAtTime(peak, t + VIOLIN.attack);
         g.gain.exponentialRampToValueAtTime(peak * 0.84, t + VIOLIN.attack + 0.2);
@@ -541,7 +669,7 @@ function violinNoteOn(midi, vel) {
         }
         lfo.start(t); oscs.push(lfo);
     }
-    voices.set(id, { oscs, gain: g, midi, id, released: false, hold: true, silent: true, release: VIOLIN.release });
+    voices.set(id, { oscs, gain: g, midi, id, peak, released: false, hold: true, silent: true, release: VIOLIN.release });
     updateVoiceReadout();
 }
 
@@ -551,10 +679,18 @@ function releaseVoice(id, immediate) {
     const t = ac.currentTime;
     const rel = immediate ? 0.03 : (v.release || (INSTRUMENTS[instrument].release || 0.25));
     try {
-        v.gain.gain.cancelScheduledValues(t);
-        const cur = Math.max(0.0001, v.gain.gain.value);
-        v.gain.gain.setValueAtTime(cur, t);
-        v.gain.gain.exponentialRampToValueAtTime(0.0001, t + rel);
+        const gain = v.gain.gain;
+        if (typeof gain.cancelAndHoldAtTime === 'function') {
+            // Preserve the instantaneous envelope, including during the attack.
+            gain.cancelAndHoldAtTime(t);
+        } else {
+            // Older browsers can report the default value (1) before the first
+            // render quantum. Never let a rapid release spike above the strike.
+            const cur = Math.max(0.0001, Math.min(Math.max(0.0001, v.peak), gain.value));
+            gain.cancelScheduledValues(t);
+            gain.setValueAtTime(cur, t);
+        }
+        gain.exponentialRampToValueAtTime(0.0001, t + rel);
     } catch (e) {}
     for (const o of v.oscs) { try { o.stop(t + rel + 0.02); } catch (e) {} }
     voices.delete(id);
@@ -961,6 +1097,7 @@ document.getElementById('instrBtn').addEventListener('click', () => {
     const i = (instrKeys.indexOf(instrument) + 1) % instrKeys.length;
     instrument = instrKeys[i];
     document.getElementById('instrName').textContent = INSTRUMENTS[instrument].name;
+    if (songPlaying) { songPrefetchIdx = songIdx; prefetchSongSamples(songTimeNow()); }
 });
 document.getElementById('gear').addEventListener('click', () => {
     alert('🎹 Web Piano\n\n• Play with mouse, multi-touch, or your computer keyboard\n• Polyphonic: press many keys at once for chords\n• Sustain pedal 🦶 (Space) holds notes\n• Z / X shift the keyboard octave\n• In a song, 🎹 / 🎻 in the transport switch the piano or violin part off so you can play that line yourself\n• 🎻 fingering follows the song\'s key — override it in the key box\n• Tap the instrument name to change the sound\n\nFree & open source (MIT) — github.com/hen-ml/piano');
@@ -1095,6 +1232,7 @@ const SONGS = {
 let songPlaying = null;
 let songStrikes = [];           // compiled, sorted: [t, pitch, durMs, gain, part]
 let songIdx = 0;                // next strike to fire
+let songPrefetchIdx = 0;        // first strike not yet checked for sample lookahead
 const songLive = new Map();     // pitch -> { midi, soundUntil, litUntil, sounding, lit }
 let songTick = 0;               // the 20 ms driver
 let songPedal = [];             // damper-pedal timeline [[ms, down], ...]
@@ -1229,9 +1367,22 @@ function strike(pitch, dur, gain, t, audible, part) {
     else if (audible) noteOn(m, gain);
     else lightKey(m, true);
 }
+function prefetchSongSamples(t) {
+    // Four seconds of real-time lookahead, independent of the tempo slider.
+    // Seek/transpose resets this cursor, so it always follows the audible notes.
+    const horizon = t + 4000 * songRate;
+    while (songPrefetchIdx < songStrikes.length && songStrikes[songPrefetchIdx][0] <= horizon) {
+        const [, pitch, , , part] = songStrikes[songPrefetchIdx++];
+        const midi = pitch + songTranspose;
+        if (midi < 0 || midi > 127) continue;
+        if (part === 'vn') requestSample('violin', midi);
+        else if (instrument === 'grand') requestSample('piano', midi);
+    }
+}
 function songTickFn() {
     if (!songPlaying || songPaused) return;
     const t = songTimeNow();
+    prefetchSongSamples(t);
     while (songIdx < songStrikes.length && songStrikes[songIdx][0] <= t) {
         const [st, pitch, dur, gain, part] = songStrikes[songIdx++];
         strike(pitch, dur, gain, st, true, part);
@@ -1251,6 +1402,8 @@ function seekTo(t) {
     let lo = 0, hi = songStrikes.length;              // first strike after t
     while (lo < hi) { const mid = (lo + hi) >> 1; if (songStrikes[mid][0] <= t) lo = mid + 1; else hi = mid; }
     songIdx = lo;
+    songPrefetchIdx = lo;
+    prefetchSongSamples(t);
     for (let i = 0; i < songIdx; i++) {               // rebuild whatever is mid-flight at t
         const [st, pitch, dur, gain, part] = songStrikes[i];
         const d = strikeDeadlines(st, dur, part === 'vn');
@@ -1318,7 +1471,7 @@ function stopSong() {
     clearInterval(songTick); songTick = 0;
     silenceLive();
     songPlaying = null; songPaused = false; songLoadedId = null;
-    songIdx = 0;
+    songIdx = 0; songPrefetchIdx = 0;
     // if the song switched falling notes on, put the full-height piano back
     if (learnAuto && prefs.learn === undefined) { learnAuto = false; setLearnMode(false, false); }
     stopClockUI(); hideTransport(); stopFall(); renderSongs();
@@ -2090,6 +2243,7 @@ window.PIANO = {
 function updateVoiceReadout() {}
 
 fitRange();
+warmSamples(); // load common recordings before the first note, without unlocking audio
 
 // offline: once visited, the app loads with no network at all (see sw.js)
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
