@@ -317,8 +317,8 @@
 <script>
 'use strict';
 // =============================================================================
-//  AUDIO — polyphonic synth. Every note is its own voice, so any number of
-//  keys sound together (multi-touch, multiple computer keys, mouse chords).
+//  AUDIO — sampled acoustic piano and violin, with procedural fallback voices.
+//  Every note is its own voice, so polyphonic input and duets stay independent.
 // =============================================================================
 let ac = null, master = null, comp = null;
 const voices = new Map();   // noteId -> { oscs:[], gain, midi, released }
@@ -326,7 +326,7 @@ const MAX_VOICES = 48;
 let volume = 0.7;
 
 const INSTRUMENTS = {
-    grand:   { name: 'Grand Piano', partials: [[1, 1, 'triangle'], [2, 0.35, 'sine'], [3, 0.15, 'sine'], [4, 0.075, 'sine'], [5, 0.04, 'sine'], [7, 0.02, 'sine']], decay: 3.4, cutoff: 4600, release: 0.3, inharm: 0.0005, hammer: 0.5 },
+    grand:   { name: 'Grand Piano', partials: [[1, 1, 'triangle'], [2, 0.35, 'sine'], [3, 0.15, 'sine'], [4, 0.075, 'sine'], [5, 0.04, 'sine'], [7, 0.02, 'sine']], decay: 6.2, cutoff: 4600, sampleCutoff: 14500, release: 0.28, inharm: 0.0005, hammer: 0.5 },
     electric:{ name: 'Electric Piano', partials: [[1, 1, 'sine'], [2, 0.5, 'sine'], [3, 0.12, 'sine'], [4, 0.14, 'triangle']], decay: 2.6, cutoff: 4200, release: 0.34, inharm: 0.0003, hammer: 0.25 },
     organ:   { name: 'Church Organ', partials: [[1, 0.9, 'sine'], [2, 0.7, 'sine'], [3, 0.5, 'sine'], [4, 0.3, 'sine']], decay: 40, cutoff: 6000, release: 0.12, hold: true },
     synth:   { name: 'Synth Lead', partials: [[1, 1, 'sawtooth'], [2, 0.25, 'square']], decay: 30, cutoff: 3400, release: 0.18, hold: true },
@@ -366,6 +366,46 @@ function ensureAudio() {
 }
 const mtof = m => 440 * Math.pow(2, (m - 69) / 12);
 
+// Sparse chromatic anchors keep the bundled sample set small. Each held note
+// is pitch-shifted from its nearest recording; the original oscillator voices
+// remain available while samples decode and for the electric/organ/synth presets.
+const SAMPLE_FILES = {
+    piano: [
+        [21, 'A0'], [24, 'C1'], [33, 'A1'], [36, 'C2'], [45, 'A2'], [48, 'C3'],
+        [57, 'A3'], [60, 'C4'], [69, 'A4'], [72, 'C5'], [81, 'A5'], [84, 'C6'],
+        [93, 'A6'], [96, 'C7'], [105, 'A7'], [108, 'C8'],
+    ].map(([midi, name]) => [midi, `./audio/piano/${name}.mp3`]),
+    violin: [
+        [55, 'G3'], [60, 'C4'], [67, 'G4'], [72, 'C5'],
+        [79, 'G5'], [84, 'C6'], [91, 'G6'], [96, 'C7'],
+    ].map(([midi, name]) => [midi, `./audio/violin/${name}.mp3`]),
+};
+const sampleBuffers = { piano: new Map(), violin: new Map() };
+const samplePending = { piano: new Map(), violin: new Map() };
+function nearestSample(family, midi) {
+    let root = null, url = null, distance = Infinity;
+    for (const [note, path] of SAMPLE_FILES[family]) {
+        const d = Math.abs(note - midi);
+        if (d < distance) { root = note; url = path; distance = d; }
+    }
+    if (root == null) return null;
+    const buffer = sampleBuffers[family].get(root);
+    if (buffer) return { buffer, rate: Math.pow(2, (midi - root) / 12) };
+    // Decode only the nearest note on demand: this keeps startup and memory
+    // use small, and the first strike gracefully uses the synth while it loads.
+    if (ac && !samplePending[family].has(root)) {
+        const pending = fetch(url).then(r => {
+            if (!r.ok) throw new Error(`sample fetch failed: ${url} (${r.status})`);
+            return r.arrayBuffer();
+        }).then(bytes => ac.decodeAudioData(bytes))
+            .then(decoded => sampleBuffers[family].set(root, decoded))
+            .catch(() => {})
+            .finally(() => samplePending[family].delete(root));
+        samplePending[family].set(root, pending);
+    }
+    return null;
+}
+
 function noteOn(midi, vel) {
     ensureAudio();
     const id = midi;
@@ -375,39 +415,51 @@ function noteOn(midi, vel) {
     }
     const t = ac.currentTime;
     const I = INSTRUMENTS[instrument];
-    const v = (vel || 1);
-    const peak = (0.16 + 0.12 * v);
+    const v = Math.max(0.01, Math.min(1, vel || 1));
+    const sample = instrument === 'grand' ? nearestSample('piano', midi) : null;
+    const peak = sample ? 0.29 * Math.pow(v, 1.28) : (0.16 + 0.12 * v);
     const g = ac.createGain();
     const filt = ac.createBiquadFilter();
     filt.type = 'lowpass';
-    // brightness follows velocity (harder = brighter) and pitch (higher = brighter)
+    // Harder strikes brighten the sample as well as raising its level.
     const bright = 0.42 + 0.58 * v;
     const pitchF = Math.max(0.55, 1 + (midi - 60) / 46);
-    filt.frequency.value = Math.min(12000, I.cutoff * bright * pitchF);
+    filt.frequency.value = Math.min(16000, (sample ? I.sampleCutoff : I.cutoff) * bright * pitchF);
     filt.Q.value = 0.6;
     g.connect(filt); filt.connect(master);
     g.gain.setValueAtTime(0.0001, t);
-    g.gain.exponentialRampToValueAtTime(peak, t + 0.006);          // attack
-    if (!I.hold) {
-        g.gain.exponentialRampToValueAtTime(peak * 0.3, t + 0.35);  // early decay
-        g.gain.exponentialRampToValueAtTime(0.0001, t + I.decay);   // long tail
+    if (sample) {
+        g.gain.linearRampToValueAtTime(peak, t + 0.012);          // keep the recorded hammer attack intact
     } else {
-        g.gain.exponentialRampToValueAtTime(peak * 0.85, t + 0.25); // sustain
+        g.gain.exponentialRampToValueAtTime(peak, t + 0.006);      // synth fallback attack
+        if (!I.hold) {
+            g.gain.exponentialRampToValueAtTime(peak * 0.3, t + 0.35);
+            g.gain.exponentialRampToValueAtTime(0.0001, t + I.decay);
+        } else {
+            g.gain.exponentialRampToValueAtTime(peak * 0.85, t + 0.25);
+        }
     }
     const oscs = [];
     const f0 = mtof(midi);
-    const inh = I.inharm || 0;
-    for (const [mult, amp, type] of I.partials) {
-        const o = ac.createOscillator();
-        o.type = type;
-        o.frequency.value = f0 * mult * (1 + inh * mult * mult);   // slight inharmonicity
-        o.detune.value = (Math.random() * 6 - 3);
-        const og = ac.createGain(); og.gain.value = amp;
-        o.connect(og); og.connect(g);
-        o.start(t); oscs.push(o);
+    if (sample) {
+        const src = ac.createBufferSource();
+        src.buffer = sample.buffer;
+        src.playbackRate.setValueAtTime(sample.rate, t);
+        src.connect(g); src.start(t); oscs.push(src);
+    } else {
+        const inh = I.inharm || 0;
+        for (const [mult, amp, type] of I.partials) {
+            const o = ac.createOscillator();
+            o.type = type;
+            o.frequency.value = f0 * mult * (1 + inh * mult * mult);   // slight inharmonicity
+            o.detune.value = (Math.random() * 6 - 3);
+            const og = ac.createGain(); og.gain.value = amp;
+            o.connect(og); og.connect(g);
+            o.start(t); oscs.push(o);
+        }
     }
-    // hammer-strike transient — a very short filtered noise burst, louder when hit harder
-    if (I.hammer && noiseBuf) {
+    // Synth-only hammer transient; the sampled piano already contains its attack.
+    if (!sample && I.hammer && noiseBuf) {
         const nz = ac.createBufferSource(); nz.buffer = noiseBuf;
         const bp = ac.createBiquadFilter(); bp.type = 'bandpass';
         bp.frequency.value = Math.min(9000, f0 * 3 + 1200); bp.Q.value = 0.7;
@@ -418,7 +470,7 @@ function noteOn(midi, vel) {
         nz.connect(bp); bp.connect(ng); ng.connect(master);
         nz.start(t); nz.stop(t + 0.06);
     }
-    voices.set(id, { oscs, gain: g, midi, id, released: false, hold: I.hold });
+    voices.set(id, { oscs, gain: g, midi, id, released: false, hold: I.hold, release: I.release });
     lightKey(midi, true);
     strikeKey(midi);
     updateVoiceReadout();
@@ -426,10 +478,8 @@ function noteOn(midi, vel) {
 // ---------------------------------------------------------------------------
 //  VIOLIN — the bowed voice used for violin parts in built-in duets
 //
-//  A sawtooth stack (odd and even harmonics, like a real bowed string, not a
-//  square wave) through a lowpass with a touch of body resonance. The attack
-//  is slow — ~80 ms from first bow contact to full sound — and a gentle 5.4 Hz
-//  vibrato fades in after the attack, so notes bloom instead of switching on.
+//  The default voice uses local bowed-string recordings; a sawtooth stack with
+//  slow attack and delayed vibrato is the procedural fallback while samples load.
 //  Voice ids are prefixed 'vn' so a held piano A4 and a bowed violin A4 never
 //  steal each other in the one voice pool. The keys stay dark: a violin note
 //  is not a piano note.
@@ -445,40 +495,52 @@ function violinNoteOn(midi, vel) {
         releaseVoice(voices.keys().next().value, true);
     }
     const t = ac.currentTime;
-    const v = (vel || 1);
-    const peak = 0.15 + 0.13 * v;
+    const v = Math.max(0.01, Math.min(1, vel || 1));
+    const sample = nearestSample('violin', midi);
+    const peak = sample ? 0.27 * Math.pow(v, 1.15) : (0.15 + 0.13 * v);
     const g = ac.createGain();
     const filt = ac.createBiquadFilter();
     filt.type = 'lowpass';
-    // brighter with velocity and with register — an E5 is more glass than wood
-    // compared to a G4 down in the strings' lower register
-    const bright = 0.5 + 0.5 * v;
+    // The recordings retain their bow noise and vibrato; use a broad filter
+    // so the sample's string harmonics and body resonance remain audible.
+    const bright = sample ? 0.82 + 0.3 * v : 0.5 + 0.5 * v;
     const pitchF = Math.max(0.62, 1 + (midi - 69) / 42);
-    filt.frequency.value = Math.min(8000, VIOLIN.cutoff * bright * pitchF);
-    filt.Q.value = 1.15;               // resonance hump of the body
+    filt.frequency.value = Math.min(sample ? 15000 : 8000,
+        (sample ? 10800 : VIOLIN.cutoff) * bright * pitchF);
+    filt.Q.value = sample ? 0.7 : 1.15;
     g.connect(filt); filt.connect(master);
     g.gain.setValueAtTime(0.0001, t);
-    g.gain.exponentialRampToValueAtTime(peak, t + VIOLIN.attack);              // bow attack
-    g.gain.exponentialRampToValueAtTime(peak * 0.84, t + VIOLIN.attack + 0.2); // bow settles into the string
+    if (sample) g.gain.linearRampToValueAtTime(peak, t + 0.035);
+    else {
+        g.gain.exponentialRampToValueAtTime(peak, t + VIOLIN.attack);
+        g.gain.exponentialRampToValueAtTime(peak * 0.84, t + VIOLIN.attack + 0.2);
+    }
     const oscs = [];
     const f0 = mtof(midi);
-    // vibrato fades in after the attack (~0.3 s to reach ~63%), never wobbly at the start
-    const lfo = ac.createOscillator(); lfo.type = 'sine'; lfo.frequency.value = 5.4;
-    const lfoG = ac.createGain();
-    lfoG.gain.setValueAtTime(0, t);
-    lfoG.gain.setTargetAtTime(6.5, t + 0.28, 0.32);   // ±6.5 cents
-    lfo.connect(lfoG);
-    for (const [mult, amp, type] of VIOLIN.partials) {
-        const o = ac.createOscillator();
-        o.type = type;
-        o.frequency.value = f0 * mult;
-        o.detune.value = (Math.random() * 5 - 2.5);
-        lfoG.connect(o.detune);
-        const og = ac.createGain(); og.gain.value = amp;
-        o.connect(og); og.connect(g);
-        o.start(t); oscs.push(o);
+    if (sample) {
+        const src = ac.createBufferSource();
+        src.buffer = sample.buffer;
+        src.playbackRate.setValueAtTime(sample.rate, t);
+        src.connect(g); src.start(t); oscs.push(src);
+    } else {
+        // Procedural bowed-string fallback until the local recording is ready.
+        const lfo = ac.createOscillator(); lfo.type = 'sine'; lfo.frequency.value = 5.4;
+        const lfoG = ac.createGain();
+        lfoG.gain.setValueAtTime(0, t);
+        lfoG.gain.setTargetAtTime(6.5, t + 0.28, 0.32);   // ±6.5 cents
+        lfo.connect(lfoG);
+        for (const [mult, amp, type] of VIOLIN.partials) {
+            const o = ac.createOscillator();
+            o.type = type;
+            o.frequency.value = f0 * mult;
+            o.detune.value = (Math.random() * 5 - 2.5);
+            lfoG.connect(o.detune);
+            const og = ac.createGain(); og.gain.value = amp;
+            o.connect(og); og.connect(g);
+            o.start(t); oscs.push(o);
+        }
+        lfo.start(t); oscs.push(lfo);
     }
-    lfo.start(t); oscs.push(lfo);
     voices.set(id, { oscs, gain: g, midi, id, released: false, hold: true, silent: true, release: VIOLIN.release });
     updateVoiceReadout();
 }
