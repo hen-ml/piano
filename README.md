@@ -54,16 +54,19 @@ One HTML file with inline CSS and JavaScript, plus a manifest, a service worker,
 
 ## Built-in pieces
 
-All built-ins are transcriptions from MusicXML scores. The songs are public-domain compositions; Jingle Bells is presented here as an easy violin-and-piano chorus:
+All built-ins are transcriptions from MusicXML scores. Jingle Bells is presented here as an easy violin-and-piano chorus:
 
 - **Lightly Row** (trad. American, Suzuki Violin Bk 1) — violin & piano duet
 - **Long, Long Ago** (T.H. Bayly) — violin & piano duet
 - **Canon in D** (Johann Pachelbel) — violin & piano duet
 - **Jingle Bells** (James Lord Pierpont) — easy chorus in A major, violin & piano duet
+- **Mariage d’amour** (Paul de Senneville) — violin & piano duet, arranged by Yu-Kai Huang and Zhe-Wei Ye
 
 The Jingle Bells source score lives in [`scores/jingle_bell.xml`](scores/jingle_bell.xml), credited to composer James Lord Pierpont. Its easy chorus is in A major at 88 BPM.
 
-Otherwise the app ships no songbook: it accepts any MIDI or MusicXML file you own (compressed `.mxl` included).
+The supplied Mariage d’amour source is in [`scores/mariage-damour.mxl`](scores/mariage-damour.mxl); the score credits Seaweed Melodies for rights. Repeats and endings are not expanded in playback.
+
+Beyond these pieces, the app accepts any MIDI or MusicXML file you own (compressed `.mxl` included).
 
 ## License
 
