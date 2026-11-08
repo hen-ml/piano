@@ -13,7 +13,7 @@ A browser practice tool for piano and violin. Open a MIDI or MusicXML file, slow
 - **Play one part yourself.** 🎹 / 🎻 in the transport switch the piano or the violin off mid-song, so you practice your line against the other one. Playback, the falling notes and the keys carry on — only that part's sound stops.
 - **USB MIDI keyboard.** Web MIDI in Chrome and Edge; no driver, no install.
 - **Computer keyboard.** A–L play the white keys, W–U the sharps, Z/X shift octaves, and Space sustains — no hardware needed.
-- **Sampled acoustic sound.** The default grand piano and violin use bundled recordings, with synthesized fallback while a note sample loads. Electric piano, organ and synth remain synthesized; sample assets work offline.
+- **Sampled acoustic sound.** The default grand piano and violin use bundled recordings. Common notes are prepared ahead of time, and nearby recordings bridge a loading note; a quieter synthesized fallback keeps playing possible if no sample is ready. Electric piano, organ and synth remain synthesized; sample assets work offline.
 - **Violin mode.** Labels the first-position notes on the keys and falling bars by string and finger, in the key of the song — in string colours. On by default — hit 🎻 to switch it off, or use the key box to override the detected key.
 - **Works offline.** Install it to your home screen; the service worker keeps it running without a network.
 - **Record and export.** Capture what you played and download it as a `.mid`.
@@ -21,6 +21,8 @@ A browser practice tool for piano and violin. Open a MIDI or MusicXML file, slow
 Falling notes and violin fingering are both on by default. Labels, violin mode, the key override and your preference for falling notes are remembered on the device.
 
 Part mutes are not saved: both parts start on when you open the app, and a mute you set holds while you change tempo, seek, transpose, pause or stop — so setting up "piano off, play it yourself" is one click, not one per take. A part the loaded song doesn't have (a solo piano file has no violin line) shows as unavailable rather than as a button that does nothing.
+
+Sustain starts on for live playing, so notes keep ringing after you lift a key. Toggle the 🦶 button or press Space to hear the dampers stop them; song playback follows the score's pedal events instead.
 
 MusicXML import handles chords, ties, voices, tempo changes and sustain pedal. Repeats and endings are not expanded yet — the score plays through once.
 
@@ -63,7 +65,13 @@ A Node-based equivalent of the same checks is in [`tests/run_node.js`](tests/run
 
 ## How it's built
 
-One HTML file with inline CSS and JavaScript, plus a manifest, a service worker, source MusicXML and bundled MP3 samples. The grand piano and violin use sampled recordings with a procedural Web Audio fallback; electric piano, organ and synth remain synthesized. MIDI and MusicXML parsing are hand-rolled. Sample assets are cached for offline use; no third-party runtime requests.
+One HTML file with inline CSS and JavaScript, plus a manifest, a service worker, source MusicXML and bundled MP3 samples. The grand piano and violin use sampled recordings with a procedural Web Audio fallback; electric piano, organ and synth remain synthesized. MIDI and MusicXML parsing are hand-rolled. Sample assets are cached for offline use; no third-party runtime requests. See [the sound comparison](docs/sound-comparison.md) for measurements, changes, and remaining limitations.
+
+The audio loader and sample mapping tests run with Node (no packages to install):
+
+```bash
+node --test tests/audio.test.cjs
+```
 
 ## Built-in pieces
 

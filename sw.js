@@ -1,8 +1,15 @@
 // Offline support: cache the app shell on install, serve cache-first, and
 // refresh the cache in the background when the network is available.
-const CACHE = 'piano-v17';   // bump when app code or bundled audio changes, so installed copies pick it up
-const ASSETS = ['./', './index.html', './manifest.json', './icon.svg',
-    './audio/piano/A0.mp3', './audio/piano/C1.mp3', './audio/piano/A1.mp3', './audio/piano/C2.mp3', './audio/piano/A2.mp3', './audio/piano/C3.mp3', './audio/piano/A3.mp3', './audio/piano/C4.mp3', './audio/piano/A4.mp3', './audio/piano/C5.mp3', './audio/piano/A5.mp3', './audio/piano/C6.mp3', './audio/piano/A6.mp3', './audio/piano/C7.mp3', './audio/piano/A7.mp3', './audio/piano/C8.mp3', './audio/violin/G3.mp3', './audio/violin/C4.mp3', './audio/violin/G4.mp3', './audio/violin/C5.mp3', './audio/violin/G5.mp3', './audio/violin/C6.mp3', './audio/violin/G6.mp3', './audio/violin/C7.mp3'];
+const CACHE = 'piano-v19';   // bump when app code or bundled audio changes, so installed copies pick it up
+const ASSETS = [
+    './', './index.html', './manifest.json', './icon.svg',
+    ...['A0', 'C1', 'Ds1', 'Fs1', 'A1', 'C2', 'Ds2', 'Fs2', 'A2', 'C3',
+        'Ds3', 'Fs3', 'A3', 'C4', 'Ds4', 'Fs4', 'A4', 'C5', 'Ds5', 'Fs5',
+        'A5', 'C6', 'Ds6', 'Fs6', 'A6', 'C7', 'Ds7', 'Fs7', 'A7', 'C8']
+        .map(note => `./audio/piano/${note}.mp3`),
+    ...['G3', 'A3', 'C4', 'E4', 'G4', 'A4', 'C5', 'E5', 'G5', 'A5',
+        'C6', 'E6', 'G6', 'A6', 'C7'].map(note => `./audio/violin/${note}.mp3`),
+];
 
 self.addEventListener('install', e => {
     e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting()));

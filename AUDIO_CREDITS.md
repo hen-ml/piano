@@ -10,4 +10,4 @@ Salamander Grand Piano V3 samples by Alexander Holm, from the [Salamander Grand 
 
 Violin samples sourced from Versilian Studios Chamber Orchestra 2 (VSO2), distributed in the `tonejs-instrument-violin-mp3` sample package version `1.1.1`. The package documents the recordings as edited note samples from public-domain sources and distributes the samples under [Creative Commons Attribution 3.0](https://creativecommons.org/licenses/by/3.0/). Source project and sample notes: <https://github.com/Makefully-Studios/tonejs-instruments> and <https://github.com/Makefully-Studios/tonejs-instruments/blob/main/sample-source-info.txt>.
 
-The piano and violin samples are used as unmodified MP3 files; playback pitch-shifts the nearest recorded note as needed.
+The piano and violin samples are used as unmodified MP3 files; playback pitch-shifts the nearest recorded note as needed. Piano filenames using `Ds` and `Fs` correspond to the source package's `D#` and `F#` files (renamed to avoid URL fragments).
