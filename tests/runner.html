@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Piano Practice — unit tests</title>
+    <style>
+        body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+               padding: 16px; background: #0a0a0c; color: #ecf0f1; }
+        h2 { margin-top: 0; }
+        .pass { color: #4ade80; } .fail { color: #f07070; }
+        .summary { font-weight: 600; margin-top: 16px; font-size: 16px; }
+        table { border-collapse: collapse; margin-top: 8px; }
+        th { text-align: left; padding: 6px 10px; border-bottom: 2px solid #34343e; }
+        td { padding: 4px 10px; border: 1px solid #34343e; vertical-align: top; font-size: 13px; }
+        tr.fail td { background: #2a1a1a; }
+        pre { background: #141416; padding: 8px 12px; border-radius: 8px; overflow: auto; }
+        .muted { color: #8a8f99; font-size: 13px; }
+    </style>
+</head>
+<body>
+    <h2>Piano Practice — unit tests</h2>
+    <p class="muted">Exercises the real code in <code>index.html</code> through its <code>window.PIANO</code> test hook.</p>
+
+    <!-- Stub elements the app touches while loading (no real keyboard, audio or storage) -->
+    <div id="stage" style="width:500px"></div>
+    <select id="keySel"><option></option></select>
+    <div id="learnBtn"></div><canvas id="fallCanvas"></canvas><div id="keys"></div>
+    <button id="songsBtn"></button><button id="songsClose"></button>
+    <input id="midiInput" type="file">
+    <button id="recBtn"></button><button id="violinBtn"></button>
+    <div id="songsList"></div><div id="songsModal"></div>
+    <div id="transport">
+        <div id="tPlay"></div><div id="tLoop"></div><div id="tTempoV"></div><div id="tTempo"></div>
+        <div id="tTrV"></div><div id="tSeek"></div><div id="tTime"></div>
+    </div>
+    <div id="tPartPiano"></div><div id="tPartViolin"></div><div id="sustainBtn"></div>
+
+    <div id="report"></div>
+
+    <script src="piano_tests.js"></script>
+    <script>
+        // Hermetic localStorage shim: tests never touch the visitor's real storage.
+        (function () {
+            const store = {};
+            window.localStorage = {
+                getItem(k) { return store[k] == null ? null : store[k]; },
+                setItem(k, v) { store[k] = String(v); },
+                clear() { Object.keys(store).forEach(k => delete store[k]); }
+            };
+        })();
+
+        // Stub any element ids the app looks for at load time.
+        function stub(id) {
+            let el = document.getElementById(id);
+            if (!el) { el = document.createElement('div'); el.id = id; document.body.appendChild(el); }
+            return el;
+        }
+        ['keySel', 'learnBtn', 'fallCanvas', 'keys', 'songsBtn', 'songsClose', 'midiInput',
+            'recBtn', 'violinBtn', 'songsList', 'songsModal', 'transport', 'tPlay', 'tLoop',
+            'tTempoV', 'tTempo', 'tTrV', 'tSeek', 'tTime', 'tPartPiano', 'tPartViolin',
+            'sustainBtn'].forEach(stub);
+        const keySel = document.getElementById('keySel');
+        if (!keySel.options.length) keySel.appendChild(document.createElement('option'));
+
+        // Don't register the real service worker or start real audio during tests.
+        window.navigator.serviceWorker = { register: () => Promise.resolve() };
+        window.ensureAudio = () => { };
+
+        (async function main() {
+            const res = await fetch('index.html');
+            if (!res.ok) throw new Error('could not fetch index.html (' + res.status + ')');
+            const html = await res.text();
+            const m = html.match(/<script>([\s\S]*)<\/script>/);
+            if (!m) throw new Error('no <script> block in index.html');
+
+            // Run the app's real script in this window: defines every function
+            // and installs the window.PIANO test hook.
+            const s = document.createElement('script');
+            s.textContent = m[1];
+            document.head.appendChild(s);
+
+            const P = window.PIANO;
+            if (!P) throw new Error('window.PIANO test hook not installed by index.html');
+
+            const report = window.pianoTests.run(P);
+            const reportEl = document.getElementById('report');
+            const fails = report.results.filter(r => !r.ok);
+
+            let htmlOut = `<div class="summary ${fails.length ? 'fail' : 'pass'}">
+                ${report.pass}/${report.total} checks passed${fails.length ? ' — ' + fails.length + ' FAILED' : ''}.
+            </div>`;
+            htmlOut += '<table><tr><th>Check</th><th>Status</th><th>Details</th></tr>';
+            for (const r of report.results) {
+                const detail = r.ok ? '' : '<pre>' + r.fails.map(e => e.replace(/</g, '&lt;')).join('\n') + '</pre>';
+                htmlOut += `<tr class="${r.ok ? 'pass' : 'fail'}"><td>${r.name}</td>
+                    <td class="${r.ok ? 'pass' : 'fail'}">${r.ok ? 'PASS' : 'FAIL'}</td>
+                    <td>${detail}</td></tr>`;
+            }
+            htmlOut += '</table>';
+            reportEl.innerHTML = htmlOut;
+
+            console.log('Piano unit tests: ' + report.pass + '/' + report.total + ' passed');
+            for (const f of fails) {
+                console.log('FAIL — ' + f.name);
+                for (const e of f.fails) console.log('  - ' + e);
+            }
+        })();
+    </script>
+</body>
+</html>
