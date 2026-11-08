@@ -53,20 +53,20 @@ One HTML file with inline CSS and JavaScript, plus a manifest, a service worker 
 
 ## Built-in pieces
 
-All built-ins are transcriptions from MusicXML scores. The first three are public domain; the easy-chorus Jingle Bells arrangement is by Astra:
+All built-ins are transcriptions from MusicXML scores. The songs are public-domain compositions; Jingle Bells is presented here as an easy violin-and-piano chorus:
 
 - **Lightly Row** (trad. American, Suzuki Violin Bk 1) — violin & piano duet
 - **Long, Long Ago** (T.H. Bayly) — violin & piano duet
 - **Canon in D** (Johann Pachelbel) — violin & piano duet
-- **Jingle Bells** (Astra) — easy chorus in A major, violin & piano duet
+- **Jingle Bells** (James Lord Pierpont) — easy chorus in A major, violin & piano duet
 
-The Jingle Bells source score lives in [`scores/jingle_bell.xml`](scores/jingle_bell.xml), so its transcription can be checked against the part names, key signature and grand-staff split.
+The Jingle Bells source score lives in [`scores/jingle_bell.xml`](scores/jingle_bell.xml), credited to composer James Lord Pierpont. Its easy chorus is in A major at 88 BPM.
 
 Otherwise the app ships no songbook: it accepts any MIDI or MusicXML file you own (compressed `.mxl` included).
 
 ## License
 
-**Code:** [MIT](LICENSE) © Ming-Hen (Henry) Tsai · **Public-domain built-in song note data:** CC0 1.0 Public Domain Dedication — the melodies (Bayly, Pachelbel, traditional) are public domain, and their transcribed note events are dedicated to the public domain too. The Jingle Bells arrangement is credited to Astra and is not covered by that dedication.
+**Code:** [MIT](LICENSE) © Ming-Hen (Henry) Tsai · **Public-domain built-in song note data:** CC0 1.0 Public Domain Dedication — the transcribed note events for Lightly Row, Long, Long Ago and Canon in D are dedicated to the public domain. Jingle Bells is credited in its source score to composer James Lord Pierpont.
 
 ## More experiments
 
