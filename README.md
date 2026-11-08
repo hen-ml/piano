@@ -49,21 +49,24 @@ Then open <http://localhost:8000/>. Opening `index.html` directly from disk most
 
 ## How it's built
 
-One HTML file with inline CSS and JavaScript, plus a manifest and a service worker. Audio is synthesized with the Web Audio API; MIDI and MusicXML parsing are hand-rolled. No frameworks, no bundler, no network calls.
+One HTML file with inline CSS and JavaScript, plus a manifest, a service worker and the source MusicXML for the Jingle Bells built-in. Audio is synthesized with the Web Audio API; MIDI and MusicXML parsing are hand-rolled. No frameworks, no bundler, no network calls.
 
 ## Built-in pieces
 
-All built-ins are transcriptions from MusicXML scores, public domain:
+All built-ins are transcriptions from MusicXML scores. The first three are public domain; the easy-chorus Jingle Bells arrangement is by Astra:
 
 - **Lightly Row** (trad. American, Suzuki Violin Bk 1) — violin & piano duet
 - **Long, Long Ago** (T.H. Bayly) — violin & piano duet
 - **Canon in D** (Johann Pachelbel) — violin & piano duet
+- **Jingle Bells** (Astra) — easy chorus in A major, violin & piano duet
+
+The Jingle Bells source score lives in [`scores/jingle_bell.xml`](scores/jingle_bell.xml), so its transcription can be checked against the part names, key signature and grand-staff split.
 
 Otherwise the app ships no songbook: it accepts any MIDI or MusicXML file you own (compressed `.mxl` included).
 
 ## License
 
-**Code:** [MIT](LICENSE) © Ming-Hen (Henry) Tsai · **Built-in song note data:** CC0 1.0 Public Domain Dedication — the melodies (Bayly, Pachelbel, traditional) are public domain, and the transcribed note events are dedicated to the public domain too.
+**Code:** [MIT](LICENSE) © Ming-Hen (Henry) Tsai · **Public-domain built-in song note data:** CC0 1.0 Public Domain Dedication — the melodies (Bayly, Pachelbel, traditional) are public domain, and their transcribed note events are dedicated to the public domain too. The Jingle Bells arrangement is credited to Astra and is not covered by that dedication.
 
 ## More experiments
 
