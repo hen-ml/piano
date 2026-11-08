@@ -48,6 +48,19 @@ python3 -m http.server 8000
 
 Then open <http://localhost:8000/>. Opening `index.html` directly from disk mostly works, but the service worker and MIDI loading expect `http://`.
 
+## Testing
+
+Unit tests live in [`tests/runner.html`](tests/runner.html) and exercise the real code in `index.html` through its `window.PIANO` test hook: key detection, violin fingering tables, note voicing, strike deadlines, sustain-pedal handling, MIDI parse/export round-trips, MusicXML import, and the built-in songs.
+
+Serve the folder and open the test page:
+
+```bash
+python3 -m http.server 8000
+```
+then open <http://localhost:8000/tests/runner.html>.
+
+A Node-based equivalent of the same checks is in [`tests/run_node.js`](tests/run_node.js) (`node tests/run_node.js`), for running them without a browser.
+
 ## How it's built
 
 One HTML file with inline CSS and JavaScript, plus a manifest, a service worker, source MusicXML and bundled MP3 samples. The grand piano and violin use sampled recordings with a procedural Web Audio fallback; electric piano, organ and synth remain synthesized. MIDI and MusicXML parsing are hand-rolled. Sample assets are cached for offline use; no third-party runtime requests.
