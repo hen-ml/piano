@@ -133,6 +133,15 @@
         .tbtn.sm { width: 26px; height: 26px; font-size: 16px; }
         .tbtn.on { color: #fff; border-color: #6d4bd8; background: #3a2b78; }
         .tbtn:active { transform: translateY(1px); }
+        /* part mutes — piano / violin on or off, so you can play one line yourself */
+        .tpart { height: 30px; padding: 0 9px; flex: none; border-radius: 8px; background: #23232a;
+            border: 1px solid #34343e; color: #cfd3da; font-size: 12px; font-weight: 700; cursor: pointer;
+            display: flex; align-items: center; gap: 5px; user-select: none; white-space: nowrap; }
+        .tpart.on { color: #fff; border-color: #6d4bd8; background: #3a2b78; }
+        .tpart:not(.on) { color: #7d818b; background: #17171d; border-style: dashed; text-decoration: line-through; }
+        .tpart:not(.on) span { opacity: 0.7; }
+        .tpart.na { opacity: 0.4; }
+        .tpart:active { transform: translateY(1px); }
         /* falling-notes canvas */
         #fall { position: absolute; left: 0; top: 0; z-index: 2; pointer-events: none; display: none; }
         #fall.on { display: block; }
@@ -225,6 +234,11 @@
             .lab { font-size: 10px; } .black .lab { font-size: 8px; }   /* fingering still fits a phone-width black key */
             #toolbar { flex-wrap: wrap; }        /* the key box must not push controls off-screen */
             #keySel { max-width: 80px; font-size: 11px; padding: 7px 4px; }
+            /* on a phone the transport is tight: the part toggles keep their icons
+               and drop their words, so 🎹 / 🎻 alone still fit on one row */
+            #tParts { padding: 4px 6px; gap: 4px; }
+            #tParts .hideSm, .lbl.hideSm { display: none; }   /* the global rule misses these */
+            .tpart { padding: 0 6px; }
         }
     </style>
 </head>
@@ -272,6 +286,11 @@
         <div class="tgroup" title="Tempo"><span class="tlbl">⏩</span><input id="tTempo" type="range" min="40" max="150" value="100"><span id="tTempoV" class="tmono">100%</span></div>
         <div class="tgroup" title="Transpose (semitones)"><span class="tlbl">♭♯</span><div class="tbtn sm" id="tTrDown">−</div><span id="tTrV" class="tmono">0</span><div class="tbtn sm" id="tTrUp">+</div></div>
         <div class="tbtn" id="tLoop" title="Loop">🔁</div>
+        <div class="tgroup" id="tParts" title="Parts — switch a part off to play that line yourself">
+            <span class="tlbl hideSm">Parts</span>
+            <div class="tpart on" id="tPartPiano" title="Piano part is on — click to mute it">🎹<span class="hideSm">Piano</span></div>
+            <div class="tpart on" id="tPartViolin" title="Violin part is on — click to mute it">🎻<span class="hideSm">Violin</span></div>
+        </div>
         <div class="tbtn" id="tStop" title="Stop">⏹</div>
     </div>
 
@@ -882,7 +901,7 @@ document.getElementById('instrBtn').addEventListener('click', () => {
     document.getElementById('instrName').textContent = INSTRUMENTS[instrument].name;
 });
 document.getElementById('gear').addEventListener('click', () => {
-    alert('🎹 Web Piano\n\n• Play with mouse, multi-touch, or your computer keyboard\n• Polyphonic: press many keys at once for chords\n• Sustain pedal 🦶 (Space) holds notes\n• Z / X shift the keyboard octave\n• 🎻 fingering follows the song\'s key — override it in the key box\n• Tap the instrument name to change the sound\n\nFree & open source (MIT) — github.com/hen-ml/piano');
+    alert('🎹 Web Piano\n\n• Play with mouse, multi-touch, or your computer keyboard\n• Polyphonic: press many keys at once for chords\n• Sustain pedal 🦶 (Space) holds notes\n• Z / X shift the keyboard octave\n• In a song, 🎹 / 🎻 in the transport switch the piano or violin part off so you can play that line yourself\n• 🎻 fingering follows the song\'s key — override it in the key box\n• Tap the instrument name to change the sound\n\nFree & open source (MIT) — github.com/hen-ml/piano');
 });
 document.getElementById('segChord').addEventListener('click', () => {
     // quick demo: play a C major chord so you can hear polyphony
@@ -1010,6 +1029,12 @@ let songTranspose = 0;          // semitones
 let songLoop = false;
 let songPaused = false;
 let songEvents = [];            // normalized [t,midi,dur,vel,k] for the loaded song
+// Part mutes: switch the piano (or the violin) off while the transport keeps
+// running, so you can play that line yourself against the other one. This is a
+// playback setting, not a preference — every song starts with both parts on.
+let partOn = { piano: true, violin: true };
+const partOf = part => part === 'vn' ? 'violin' : 'piano';
+const partAudible = part => partOn[partOf(part)];
 let songDur = 0;                // ms
 let songLoadedId = null;
 let clkPerf0 = 0, clkOff0 = 0;  // song-time = clkOff0 + (now - clkPerf0) · rate
@@ -1108,6 +1133,11 @@ function strike(pitch, dur, gain, t, audible, part) {
     const m = pitch + songTranspose;
     if (m < 0 || m > 127) return;
     const isVn = part === 'vn';
+    // a muted part still keeps its own bookkeeping — it just never sounds, so
+    // switching it back on mid-song releases at the right moment instead of
+    // leaving a voice ringing. Checked here (not at compile time) so a mute
+    // takes effect on the next strike without rebuilding anything.
+    if (audible && !partAudible(part)) audible = false;
     const d = strikeDeadlines(t, dur, isVn);
     // one key per (pitch, part) so a violin A4 and a piano A4 ring independently
     const key = isVn ? pitch + '|vn' : pitch;
@@ -1181,6 +1211,7 @@ function playFrom(id, offset) {
     seekTo(offset || 0);
     if (!songTick) songTick = setInterval(songTickFn, 20);
     showTransport(s.name); startClockUI(); startFall(); renderSongs();
+    updatePartUI();          // a new song may not have both parts in it
 }
 function playSong(id) { if (id !== songPlaying) songLoadedId = null; playFrom(id, 0); }
 function pauseSong() {
@@ -1217,6 +1248,7 @@ function stopSong() {
     // if the song switched falling notes on, put the full-height piano back
     if (learnAuto && prefs.learn === undefined) { learnAuto = false; setLearnMode(false, false); }
     stopClockUI(); hideTransport(); stopFall(); renderSongs();
+    updatePartUI();             // no song loaded: the toggles go neutral again
     setFingering(0);            // no song to follow: back to the untransposed chart
 }
 
@@ -1238,6 +1270,49 @@ function updateTransportUI() {
 }
 function startClockUI() { stopClockUI(); clockTimer = setInterval(updateTransportUI, 200); }
 function stopClockUI() { clearInterval(clockTimer); clockTimer = 0; }
+
+// ---- part mutes (piano / violin) ----
+// Does the loaded song actually have this part? A solo piano file has no
+// violin line, and offering to mute it would be a button that does nothing.
+function songHasPart(name) {
+    if (!songPlaying) return null;              // no song: nothing to say
+    for (const e of songEvents) if (partOf(e[5] || '') === name) return true;
+    return false;
+}
+function updatePartUI() {
+    for (const name of ['piano', 'violin']) {
+        const el = T(name === 'piano' ? 'tPartPiano' : 'tPartViolin');
+        const on = partOn[name];
+        const has = songHasPart(name);
+        const label = name[0].toUpperCase() + name.slice(1);
+        el.classList.toggle('on', on);
+        el.classList.toggle('na', has === false);   // dimmed: this song has no such part
+        el.setAttribute('aria-pressed', on ? 'true' : 'false');
+        el.title = has === false
+            ? label + ' — this song has no ' + name + ' part'
+            : label + ' part is ' + (on ? 'on — click to mute it' : 'muted — click to switch it back on');
+    }
+}
+function setPart(name, on) {
+    partOn[name] = !!on;
+    updatePartUI();
+    if (!partOn[name]) {
+        // cut what is already ringing instead of waiting for its written end —
+        // a mute that lets a held note ring on for two bars isn't a mute. Play
+        // keeps running and the part's keys keep lighting, so the practice
+        // line stays visible while you play it yourself.
+        for (const v of songLive.values()) {
+            if (partOf(v.part) !== name || !v.sounding) continue;
+            if (ac) releaseVoice(v.id || v.midi, false);
+            v.sounding = false;
+        }
+    }
+}
+function togglePart(name) { setPart(name, !partOn[name]); }
+updatePartUI();
+T('tPartPiano').addEventListener('click', () => togglePart('piano'));
+T('tPartViolin').addEventListener('click', () => togglePart('violin'));
+
 T('tPlay').addEventListener('click', () => songPaused ? resumeSong() : pauseSong());
 T('tStop').addEventListener('click', stopSong);
 T('tLoop').addEventListener('click', () => { songLoop = !songLoop; updateTransportUI(); });
@@ -1926,6 +2001,9 @@ window.PIANO = {
     toggleRecord: () => recBtn.click(),
     toggleViolin: () => document.getElementById('violinBtn').click(),
     violinFinger, violin: () => violinMode,
+    parts: () => ({ ...partOn }),
+    setPart: (name, on) => setPart(name, on),
+    toggleParts: () => { togglePart('piano'); togglePart('violin'); },
     key: () => ({ ...activeKey, song: { ...currentSongKey }, shift: keyShift, override: keyOverride }),
     setKey: v => { keyOverride = keySel.value = v; prefs.key = v; savePrefs(); setFingering(keyShift); },
     detectKey, fingerTableFor,

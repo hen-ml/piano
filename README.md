@@ -10,6 +10,7 @@ A browser practice tool for piano and violin. Open a MIDI or MusicXML file, slow
 
 - **Your own MIDI and MusicXML files.** Standard `.mid`, `.musicxml` and compressed `.mxl` files play locally in the tab — nothing is uploaded anywhere.
 - **Tempo and loop.** 40–150% speed, seek anywhere, loop a range until the passage holds together.
+- **Play one part yourself.** 🎹 / 🎻 in the transport switch the piano or the violin off mid-song, so you practice your line against the other one. Playback, the falling notes and the keys carry on — only that part's sound stops.
 - **USB MIDI keyboard.** Web MIDI in Chrome and Edge; no driver, no install.
 - **Computer keyboard.** A–L play the white keys, W–U the sharps, Z/X shift octaves, and Space sustains — no hardware needed.
 - **Violin mode.** Labels the first-position notes on the keys and falling bars by string and finger, in the key of the song — in string colours. On by default — hit 🎻 to switch it off, or use the key box to override the detected key.
@@ -17,6 +18,8 @@ A browser practice tool for piano and violin. Open a MIDI or MusicXML file, slow
 - **Record and export.** Capture what you played and download it as a `.mid`.
 
 Falling notes and violin fingering are both on by default. Labels, violin mode, the key override and your preference for falling notes are remembered on the device.
+
+Part mutes are not saved: both parts start on when you open the app, and a mute you set holds while you change tempo, seek, transpose, pause or stop — so setting up "piano off, play it yourself" is one click, not one per take. A part the loaded song doesn't have (a solo piano file has no violin line) shows as unavailable rather than as a button that does nothing.
 
 MusicXML import handles chords, ties, voices, tempo changes and sustain pedal. Repeats and endings are not expanded yet — the score plays through once.
 
