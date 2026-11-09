@@ -86,7 +86,7 @@ All built-ins are transcriptions from MusicXML scores. Jingle Bells is presented
 
 The Jingle Bells source score lives in [`scores/jingle_bell.xml`](scores/jingle_bell.xml), credited to composer James Lord Pierpont. Its easy chorus is in A major at 88 BPM.
 
-The May Song source score is in [`scores/may-song.mxl`](scores/may-song.mxl), credited as a folk song; it is in A major at 80 BPM. The built-in expands its repeat, so it plays all 24 bars.
+The May Song source score is in [`scores/may-song.mxl`](scores/may-song.mxl), credited as a folk song; it is in A major at 80 BPM. The built-in expands its repeat, so it plays all 24 bars. As in the score, the piano's right hand doubles the violin melody note for note while the left hand plays the accompaniment, so the falling notes stay green over a purple bass and the melody can be played along with on the keyboard.
 
 The supplied Mariage d’amour source is in [`scores/mariage-damour.mxl`](scores/mariage-damour.mxl); the score credits Seaweed Melodies for rights. Repeats and endings are not expanded in playback.
 
