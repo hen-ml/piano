@@ -1,6 +1,6 @@
 // Offline support: cache the app shell on install, serve cache-first, and
 // refresh the cache in the background when the network is available.
-const CACHE = 'piano-v19';   // bump when app code or bundled audio changes, so installed copies pick it up
+const CACHE = 'piano-v20';   // bump when app code or bundled audio changes, so installed copies pick it up
 const ASSETS = [
     './', './index.html', './manifest.json', './icon.svg',
     ...['A0', 'C1', 'Ds1', 'Fs1', 'A1', 'C2', 'Ds2', 'Fs2', 'A2', 'C3',

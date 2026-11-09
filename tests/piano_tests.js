@@ -319,6 +319,7 @@
             results.push(check('built-in songs load', function (a) {
                 const ids = P.songs();
                 a.ok(ids.includes('lightlyrow'));
+                a.ok(ids.includes('maysong'));
                 a.ok(ids.includes('longlongago'));
                 a.ok(ids.includes('canonind'));
                 a.ok(ids.includes('jinglebells'));
