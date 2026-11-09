@@ -324,6 +324,18 @@
                 a.ok(ids.includes('canonind'));
                 a.ok(ids.includes('jinglebells'));
             }));
+            results.push(check('May Song: piano right hand mirrors the violin', function (a) {
+                const ev = P.songEvents('maysong');
+                const pick = e => [e[0], e[1], e[2]].join(':');
+                const vn = ev.filter(e => e[5] === 'vn').map(pick);
+                const rh = ev.filter(e => e[5] === 'rh').map(pick);
+                const lh = ev.filter(e => e[5] === 'lh');
+                a.ok(vn.length > 0, 'song has a violin line');
+                a.equal(rh, vn, 'every violin note is doubled by the right hand');
+                a.ok(lh.length > 0, 'song has a left hand');
+                // both hands are piano, so the part mute sees one piano part
+                a.ok(rh.every(e => e[0] < 72000), 'right hand notes are inside the 24 bars');
+            }));
 
             const pass = results.filter(r => r.ok).length;
             const fail = results.filter(r => !r.ok).length;
