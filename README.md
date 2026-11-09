@@ -78,12 +78,15 @@ node --test tests/audio.test.cjs
 All built-ins are transcriptions from MusicXML scores. Jingle Bells is presented here as an easy violin-and-piano chorus:
 
 - **Lightly Row** (trad. American, Suzuki Violin Bk 1) — violin & piano duet
+- **May Song** (folk song, Suzuki Violin Bk 1) — violin & piano duet
 - **Long, Long Ago** (T.H. Bayly) — violin & piano duet
 - **Canon in D** (Johann Pachelbel) — violin & piano duet
 - **Jingle Bells** (James Lord Pierpont) — easy chorus in A major, violin & piano duet
 - **Mariage d’amour** (Paul de Senneville) — violin & piano duet, arranged by Yu-Kai Huang and Zhe-Wei Ye
 
 The Jingle Bells source score lives in [`scores/jingle_bell.xml`](scores/jingle_bell.xml), credited to composer James Lord Pierpont. Its easy chorus is in A major at 88 BPM.
+
+The May Song source score is in [`scores/may-song.mxl`](scores/may-song.mxl), credited as a folk song; it is in A major at 80 BPM. The built-in expands its repeat, so it plays all 24 bars.
 
 The supplied Mariage d’amour source is in [`scores/mariage-damour.mxl`](scores/mariage-damour.mxl); the score credits Seaweed Melodies for rights. Repeats and endings are not expanded in playback.
 
