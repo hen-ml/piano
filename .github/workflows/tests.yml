@@ -1,0 +1,20 @@
+name: Tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  node:
+    name: Node test suites
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      # no build step and no dependencies: the app's real code runs under Node
+      - name: Unit tests (parsers, fingering, songs, loop range)
+        run: node tests/run_node.js
+      - name: Audio loader and sample mapping
+        run: node --test tests/audio.test.cjs

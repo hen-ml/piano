@@ -9,13 +9,14 @@ A browser practice tool for piano and violin. Open a MIDI or MusicXML file, slow
 ## What it does
 
 - **Your own MIDI and MusicXML files.** Standard `.mid`, `.musicxml` and compressed `.mxl` files play locally in the tab — nothing is uploaded anywhere.
-- **Tempo and loop.** 40–150% speed, seek anywhere, loop a range until the passage holds together.
+- **Tempo and loop.** 40–150% speed, seek anywhere, and loop the passage that keeps falling apart: press 🔁, then set **A** and **B** at the playhead. The points snap to the nearest bar in MusicXML scores and MIDI files that carry bar lines, and to the nearest note in songs that don't. When the song ends the transport stays up, so ▶ replays it.
 - **Play one part yourself.** 🎹 / 🎻 in the transport switch the piano or the violin off mid-song, so you practice your line against the other one. Playback, the falling notes and the keys carry on — only that part's sound stops.
 - **USB MIDI keyboard.** Web MIDI in Chrome and Edge; no driver, no install.
 - **Computer keyboard.** A–L play the white keys, W–U the sharps, Z/X shift octaves, and Space sustains — no hardware needed.
 - **Sampled acoustic sound.** The default grand piano and violin use bundled recordings. Common notes are prepared ahead of time, and nearby recordings bridge a loading note; a quieter synthesized fallback keeps playing possible if no sample is ready. Electric piano, organ and synth remain synthesized; sample assets work offline.
 - **Violin mode.** Labels the first-position notes on the keys and falling bars by string and finger, in the key of the song — in string colours. On by default — hit 🎻 to switch it off, or use the key box to override the detected key.
 - **Works offline.** Install it to your home screen; the service worker keeps it running without a network.
+- **Help and feedback.** ⚙️ opens a help panel with the version number and a link to report a bug; a crash offers to file a report too.
 - **Record and export.** Capture what you played and download it as a `.mid`.
 
 Falling notes and violin fingering are both on by default. Labels, violin mode, the key override and your preference for falling notes are remembered on the device.
@@ -61,7 +62,7 @@ python3 -m http.server 8000
 ```
 then open <http://localhost:8000/tests/runner.html>.
 
-A Node-based equivalent of the same checks is in [`tests/run_node.js`](tests/run_node.js) (`node tests/run_node.js`), for running them without a browser.
+A Node-based equivalent of the same checks is in [`tests/run_node.js`](tests/run_node.js) (`node tests/run_node.js`), for running them without a browser. Both Node suites also run in CI on every push and pull request ([`.github/workflows/tests.yml`](.github/workflows/tests.yml)).
 
 ## How it's built
 

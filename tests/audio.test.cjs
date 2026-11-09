@@ -245,3 +245,26 @@ test('song sample lookahead follows tempo, transpose, and instrument', () => {
     context.run(0);
     assert.deepEqual(calls, [['violin', 67], ['violin', 70]], 'non-grand instruments only prefetch violin samples');
 });
+
+test('the UI version, the service-worker cache, and the app icons stay in step', () => {
+    const sw = fs.readFileSync(path.join(root, 'sw.js'), 'utf8');
+    const version = /const APP_VERSION = '([^']+)'/.exec(html);
+    const cache = /const CACHE = '([^']+)'/.exec(sw);
+    assert(version, 'index.html must declare APP_VERSION');
+    assert(cache, 'sw.js must declare CACHE');
+    assert.equal(cache[1], 'piano-' + version[1],
+        'bumping APP_VERSION must rename the offline cache, or installed copies keep the old one');
+
+    // every icon the manifest advertises is a real file, and offline-cached
+    const manifest = JSON.parse(fs.readFileSync(path.join(root, 'manifest.json'), 'utf8'));
+    const worker = { self: { addEventListener() {} } };
+    vm.runInNewContext(sw + '\nglobalThis.assets = ASSETS;', worker);
+    for (const icon of manifest.icons) {
+        assert(fs.existsSync(path.join(root, icon.src)), 'manifest icon missing: ' + icon.src);
+        assert.equal(icon.type, icon.src.endsWith('.svg') ? 'image/svg+xml' : 'image/png');
+        assert(worker.assets.includes('./' + icon.src), 'icon not cached offline: ' + icon.src);
+    }
+    // iOS ignores SVG for the home-screen icon
+    assert(/rel="apple-touch-icon" href="icon-180\.png"/.test(html), 'apple-touch-icon must be a 180px PNG');
+    assert(fs.existsSync(path.join(root, 'icon-180.png')));
+});

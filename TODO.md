@@ -1,15 +1,15 @@
 # Beta release TODO
 
-Review of `main` at 365f6d6 (2026-11-08). Both test suites pass (`node tests/run_node.js` 37/37, `node --test tests/audio.test.cjs` 9/9).
+Review of `main` at 365f6d6 (2026-11-08). Both test suites pass (`node tests/run_node.js` 41/41, `node --test tests/audio.test.cjs` 10/10).
 
 ## Blockers
 
-- [ ] **Songs modal can't be closed on a landscape phone.** At 844×390 the panel is taller than the screen with only the six built-ins: the header is cut off and Close is off-screen. It has no `max-height`/scroll (and `* { touch-action: none }` blocks touch scrolling), and Close is the only way out: no backdrop tap, no Esc (`index.html:2099`). On a portrait phone, `#songsModal` sits outside the rotated `#app` (`index.html:306`), so it shows sideways relative to the app.
+- [x] **Songs modal can't be closed on a landscape phone.** *(Fixed: the panel is a flex column with a scrolling list inside a scrolling overlay, so Close is always on screen at 844×390; the modal now lives inside `#app` and rotates with it in portrait; backdrop tap and Esc close it too.)*
 - [ ] **Licensing: Mariage d'amour.** Paul de Senneville's piece is still under copyright, the score credits Seaweed Melodies for rights, and the arrangement has named arrangers. The full note data ships in `index.html:1214` and `scores/mariage-damour.mxl`. Get permission or remove it from the built-ins (users can still import their own copy). Also confirm where the Jingle Bells and Long, Long Ago arrangements came from, and whether the Suzuki Book 1 piano accompaniments (Lightly Row, May Song) can be redistributed.
-- [ ] **No A–B loop.** README, `og:description` and the tagline promise "loop any bars", but 🔁 only restarts the whole song at the end (`index.html:1396`). Build set-A/set-B (snap to measures for MusicXML), or change the copy.
-- [ ] **Missed notes play in a burst after the app is backgrounded.** The song clock is `performance.now()` (`index.html:1267`); after a screen lock or app switch, `songTickFn` fires every missed strike at once (`index.html:1386`). Pause on `visibilitychange`, and `seekTo(t)` instead of catching up when the tick gap is more than ~250 ms.
-- [ ] **iPhone silent switch mutes Web Audio.** Add `if (navigator.audioSession) navigator.audioSession.type = 'playback'`.
-- [ ] **Stuck notes from the computer keyboard.** `keyup` works out the note from the *current* octave (`index.html:1041`): hold A, press X, release A, and the first note never releases (forever with Organ/Synth, `hold: true`). Same on window blur. Keep a `Map` from key to midi; release all on `blur`.
+- [x] **No A–B loop.** *(Fixed: 🔁 reveals A/B/Clear in the transport. A and B snap to measure starts from MusicXML `<measure>`s and MIDI time-signature events, falling back to the nearest note onset for built-ins and recordings; the range is shown in the transport and looped by the song clock. `parseMusicXML`/`parseMIDI` now return a `bars` array, kept with imported songs across reloads.)*
+- [x] **Missed notes play in a burst after the app is backgrounded.** *(Fixed: a hidden tab pauses the song and a visible one resumes it; a tick gap over 250 ms re-seeks instead of replaying every missed strike.)*
+- [x] **iPhone silent switch mutes Web Audio.** *(Fixed: `ensureAudio` sets `navigator.audioSession.type = 'playback'` where the API exists.)*
+- [x] **Stuck notes from the computer keyboard.** *(Fixed: a `Map` remembers the midi each key struck, so keyup releases the right pitch even after Z/X; window blur and tab hide release everything.)*
 
 ## Sound
 
@@ -46,7 +46,8 @@ What's fine: the recordings are long enough (violin sustains 10–14 s, so slowe
 - [ ] **Violin too loud over the piano.** The violin part is louder than the whole piano part by a median **+5 dB** (Long, Long Ago; Mariage d'amour) to **+9–12 dB** (Lightly Row; Jingle Bells). Against the real May Song recording, the app's melody is 4–5 dB too loud relative to the piano chords. Pull the violin down about 5 dB (`violinNoteOn` peak 0.27 → ~0.15), or add a violin/piano balance slider.
 - [ ] **Overall output is quiet.** Mix RMS is about **−30 dBFS** (peaks −10 to −16 dBFS) at the default 70% volume, roughly 15 dB below typical music; the compressor (threshold −18 dB) never engages. Likely too quiet on phone speakers. May Song is −24 LUFS in the app against −17 LUFS in a real phone recording of the piece. Raise the master gain by about 7–10 dB and let the compressor/limiter catch peaks.
 - [ ] **No sustain pedal in any built-in song.** All six have `pedal: []`, and the Mariage d'amour score has no pedal markings, so the piano is damped at every written note end. Add an auto-pedal for piano parts without pedal data (e.g. re-pedal on each new bass note or measure), and let the final note ring: in the real May Song recording it takes 3.2 s to fade 20 dB, in the app 1.3 s.
-- [ ] **MusicXML dynamics ignored.** Every note gets velocity 90 (`parseMusicXML`). The Mariage d'amour score marks mp → ff (14 markings) and it plays flat. Read `<dynamics>` and `<sound dynamics>` (MusicXML defines velocity = 0.9 × the `dynamics` value, so May Song's 54 / 83 / 98 become p / mf / f). This is the single biggest gap to the real May Song recording: its bar-to-bar loudness follows the markings (−2.6 to +3.2 dB, quietest at the p in bar 7) while the app stays within ±0.5 dB.
+- [x] **MusicXML dynamics ignored.** Every note used to get velocity 90. *(Fixed: `<sound dynamics>` now maps at 0.9 × the value — May Song's 54.44 / 83.33 / 106.67 become p / mf / f at 49 / 75 / 96 — and `<direction><dynamics>` names (ppp–fff, sfz, fp…) set the level when no numeric value is present. Unspecified scores still use 90; dynamics apply per part from where they appear.)* This was the single biggest gap to the real May Song recording, whose bar-to-bar loudness follows the markings (−2.6 to +3.2 dB, quietest at the p in bar 7); worth re-measuring with the fix.
+- [x] **Songs never end or loop with Organ or Synth selected.** *(Fixed while making the transport stay up: a hold voice never expires on its own, so the end-of-song condition waited forever. Held voices no longer block the end, and they are cut when the song ends.)*
 - [ ] **No violin legato.** 130 slurs in Mariage d'amour are ignored; each violin note restarts its sample, with a fresh bow attack and vibrato. For slurred notes, crossfade (~40 ms) into the next sample, starting past its attack.
 - [ ] **Synthetic reverb.** `makeImpulse` (`index.html:338`) is white noise with a power-law decay and no high-frequency damping, which tends to sound hissy. Lowpass the tail over time, or ship a small licensed room impulse response, and aim for about a 2.5–3 s decay with more reverb in the mix; the app's final notes die about 2.5× faster than in the real recording.
 - [ ] **One piano velocity layer.** Soft playing is the medium-loud recording turned down and darkened. Known limitation (see `docs/sound-comparison.md`); consider a second layer (e.g. Salamander velocity 4) if size allows.
@@ -54,20 +55,20 @@ What's fine: the recordings are long enough (violin sustains 10–14 s, so slowe
 
 ## Polish
 
-- [ ] Remove placeholder UI: "Freestyle" (no handler), "Chords" (plays a C chord, `index.html:1105`), "IMPALA-STYLE WEB PIANO" banner (`index.html:298`), ⚙️ `alert()` titled "Web Piano". Use one name, Piano Practice; replace alerts with a small help/about panel.
-- [ ] Web MIDI is requested on the first tap anywhere (`index.html:2216`), and Chrome shows a permission prompt for it. Only auto-connect if `navigator.permissions.query({name:'midi'})` is already `granted`; otherwise add a "Connect MIDI keyboard" button.
-- [ ] `apple-touch-icon` is SVG, which iOS ignores. Add a 180px PNG, plus 192/512 PNGs in `manifest.json`.
+- [x] Remove placeholder UI. *(Fixed: the Freestyle/Chords pill is gone, the banner reads Piano Practice, and ⚙️ opens a help/about panel instead of an alert.)*
+- [x] Web MIDI is requested on the first tap anywhere, and Chrome shows a permission prompt for it. *(Fixed: auto-connect only when `permissions.query({name:'midi'})` is already `granted`; otherwise a "Connect MIDI" button requests it on demand.)*
+- [x] `apple-touch-icon` is SVG, which iOS ignores. *(Fixed: `icon-180.png`/`icon-192.png`/`icon-512.png`, generated by `tools/make_icons.py` from the SVG shapes, wired into the manifest and the offline cache.)*
 - [ ] Accessibility: controls are `<div>`s with emoji. Use `<button aria-label=…>`, and `aria-pressed` on toggles.
-- [ ] Double-tap-zoom guard (`index.html:1133`) cancels the second of two quick taps anywhere, so transpose `+ +` loses a step. Limit it to `#stage`.
-- [ ] Song end calls `stopSong()` and hides the transport. Stop at the end and keep the transport visible instead.
-- [ ] Deleting an imported song (✕) has no confirm or undo.
+- [x] Double-tap-zoom guard cancels the second of two quick taps anywhere, so transpose `+ +` loses a step. *(Fixed: the guard is bound to `#stage` only.)*
+- [x] Song end calls `stopSong()` and hides the transport. *(Fixed: `endSong()` stops at the last bar, keeps the transport and lets ▶ replay from the top.)*
+- [x] Deleting an imported song (✕) has no confirm or undo. *(Fixed: undo toast, and the song returns to its place in the list.)*
 
 ## Beta infrastructure
 
-- [ ] Version string in the UI, tied to `CACHE` in `sw.js`.
-- [ ] Feedback link (GitHub issue template or form) in the help panel; `window.onerror` toast offering "report this".
-- [ ] "Update available, reload" toast. The service worker serves cache first, so fixes reach users one load late.
-- [ ] CI: GitHub Action running both Node test suites on PRs.
+- [x] Version string in the UI, tied to `CACHE` in `sw.js`. *(Fixed: `APP_VERSION` shows in the help panel; the cache is named `piano-` + that string and a test fails if they drift.)*
+- [x] Feedback link (GitHub issue template or form) in the help panel; `window.onerror` toast offering "report this". *(Done, with a once-per-visit guard. There is still no issue template in the repo.)*
+- [x] "Update available, reload" toast. *(Fixed: `controllerchange` on the service worker shows a reload toast; the first install is ignored.)*
+- [x] CI: GitHub Action running both Node test suites on PRs. *(`.github/workflows/tests.yml`, on pushes and PRs.)*
 - [ ] Known-limitations list for testers:
   - MusicXML repeats/endings aren't expanded (likely the top bug report).
   - MIDI import ignores program changes, so MIDI duets get no violin part.

@@ -19,7 +19,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Piano">
-    <link rel="apple-touch-icon" href="icon.svg">
+    <link rel="apple-touch-icon" href="icon-180.png">
     <link rel="icon" href="icon.svg" type="image/svg+xml">
     <title>Piano Practice — slow it down, loop it, play along</title>
     <style>
@@ -52,22 +52,6 @@
             padding: 10px 14px; background: #060608;
             border-bottom: 1px solid #1c1c22;
         }
-        .pill {
-            display: flex; align-items: center; gap: 8px;
-            background: #17171d; border: 1px solid #26262e; border-radius: 22px;
-            padding: 6px 6px;
-        }
-        .seg {
-            display: flex; align-items: center; gap: 7px;
-            padding: 8px 16px; border-radius: 18px; font-size: 15px; font-weight: 600;
-            color: #aeb4be; cursor: pointer; white-space: nowrap;
-        }
-        .seg.active {
-            color: #fff;
-            background: linear-gradient(180deg, #6d4bd8, #4b2fb0);
-            box-shadow: 0 2px 10px rgba(109,75,216,0.45);
-        }
-        .seg .dot { width: 11px; height: 11px; border-radius: 50%; background: #e0402f; }
         .spacer { flex: 1; }
         .btn {
             display: flex; align-items: center; justify-content: center; gap: 8px;
@@ -142,6 +126,12 @@
         .tpart:not(.on) span { opacity: 0.7; }
         .tpart.na { opacity: 0.4; }
         .tpart:active { transform: translateY(1px); }
+        /* A–B loop range — shown only while looping, so the transport stays calm */
+        #tLoopAB { display: none; }
+        #tLoopAB.on { display: flex; }
+        #tLoopV { color: #9aa0ad; font-size: 11px; min-width: 34px; text-align: center; }
+        #tSetA.set, #tSetB.set { color: #fff; border-color: #6d4bd8; background: #3a2b78; }
+        #tLoopClear.off { opacity: 0.35; pointer-events: none; }
         /* falling-notes canvas */
         #fall { position: absolute; left: 0; top: 0; z-index: 2; pointer-events: none; display: none; }
         #fall.on { display: block; }
@@ -204,18 +194,37 @@
             position: absolute; bottom: 4px; right: 8px; z-index: 3;
             font-size: 11px; color: rgba(255,255,255,0.28); pointer-events: none;
         }
-        /* Songs modal */
-        #songsModal {
+        /* Songs / help modals. The panel scrolls inside the overlay, and the
+           overlay itself scrolls if the screen is shorter than the panel, so
+           Close is always reachable on a landscape phone. */
+        #songsModal, #helpModal {
             display: none; position: fixed; inset: 0; z-index: 50;
-            background: rgba(6,6,10,0.72); align-items: center; justify-content: center;
+            background: rgba(6,6,10,0.72);
+            padding: 12px; overflow-y: auto; overscroll-behavior: contain;
         }
-        #songsModal.open { display: flex; }
-        #songsPanel {
+        #songsModal.open, #helpModal.open { display: flex; }
+        /* the global `* { touch-action: none }` would stop these panels scrolling */
+        #songsModal, #songsModal *, #helpModal, #helpModal * { touch-action: pan-y; }
+        #songsPanel, #helpPanel {
+            margin: auto;                 /* centred when it fits, scrollable when it doesn't */
             background: #14141a; border: 1px solid #2a2a34; border-radius: 16px;
-            padding: 18px; width: 300px; max-width: 92vw; box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+            padding: 18px; width: 300px; max-width: 92vw; max-height: 100%;
+            display: flex; flex-direction: column;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.6);
         }
-        #songsPanel h3 { margin: 2px 0 4px; font-size: 18px; }
-        #songsPanel .sub2 { color: #8a8f99; font-size: 12px; margin-bottom: 12px; }
+        #helpPanel { width: 420px; }
+        #songsPanel h3, #helpPanel h3 { margin: 2px 0 4px; font-size: 18px; }
+        #songsPanel .sub2, #helpPanel .sub2 { color: #8a8f99; font-size: 12px; margin-bottom: 12px; }
+        #songsList, #helpBody {
+            min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch;
+            overscroll-behavior: contain;
+        }
+        #helpBody { font-size: 13px; line-height: 1.55; color: #c9ced8; }
+        #helpBody ul { margin: 8px 0 12px; padding-left: 20px; }
+        #helpBody li { margin-bottom: 6px; }
+        #helpBody code { background: #1e1e26; padding: 1px 5px; border-radius: 4px; }
+        #helpBody a { color: #a58cff; }
+        #helpVersion { color: #6f7480; font-size: 11px; margin-bottom: 10px; }
         .songRow {
             display: flex; align-items: center; gap: 10px; width: 100%;
             background: #1e1e26; border: 1px solid #2c2c36; border-radius: 10px;
@@ -225,30 +234,45 @@
         .songRow.playing { border-color: #6d4bd8; background: #241a3a; }
         .songRow .nm2 { font-weight: 600; }
         .songRow .by { color: #8a8f99; font-size: 12px; margin-left: auto; }
-        #songsClose { width: 100%; margin-top: 4px; justify-content: center; }
-        #uploadBtn { width: 100%; justify-content: center; margin: 2px 0 10px;
+        #songsClose, #helpClose { width: 100%; margin-top: 10px; justify-content: center; flex: none; }
+        #uploadBtn { width: 100%; justify-content: center; margin: 2px 0 10px; flex: none;
             background: #241a3a; border-color: #6d4bd8; color: #fff; }
         .songRow .del { margin-left: 8px; padding: 0 5px; border-radius: 6px; color: #8a8f99; }
         .songRow .del:hover { color: #ff6b6b; background: #33333e; }
-        @media (max-width: 640px) { #hint, .seg.hideSm { display: none; } .seg { padding: 8px 11px; }
+
+        /* ---------- toast (undo, errors, update notices) ---------- */
+        #toast {
+            display: none; position: fixed; left: 50%; bottom: 18px; z-index: 60;
+            transform: translateX(-50%); max-width: min(92vw, 460px);
+            align-items: center; gap: 12px; padding: 10px 12px 10px 16px;
+            background: #1c1c24; border: 1px solid #33333f; border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.55); color: #e7eaf0; font-size: 13px;
+            touch-action: auto;
+        }
+        #toast.show { display: flex; }
+        #toastMsg { flex: 1; }
+        .toastBtn {
+            flex: none; padding: 6px 10px; border-radius: 8px; cursor: pointer;
+            font-weight: 700; color: #cbbcff;
+        }
+        .toastBtn:hover { background: #2a2a36; }
+        #toastClose { color: #8a8f99; padding: 6px 8px; }
+        @media (max-width: 640px) { #hint, .hideSm { display: none; }
             .lab { font-size: 10px; } .black .lab { font-size: 8px; }   /* fingering still fits a phone-width black key */
             #toolbar { flex-wrap: wrap; }        /* the key box must not push controls off-screen */
             #keySel { max-width: 80px; font-size: 11px; padding: 7px 4px; }
             /* on a phone the transport is tight: the part toggles keep their icons
                and drop their words, so 🎹 / 🎻 alone still fit on one row */
             #tParts { padding: 4px 6px; gap: 4px; }
-            #tParts .hideSm, .lbl.hideSm { display: none; }   /* the global rule misses these */
             .tpart { padding: 0 6px; }
+            #tLoopV { min-width: 0; }
         }
     </style>
 </head>
 <body>
 <div id="app">
     <div id="topbar">
-        <div class="pill">
-            <div class="seg active" id="segFree">🎹 Freestyle</div>
-            <div class="seg hideSm" id="segChord">🎶 Chords</div>
-        </div>
+        <div class="btn" id="midiBtn" style="display:none" title="Connect a USB MIDI keyboard">🎹 <span class="hideSm">Connect MIDI</span></div>
         <div class="spacer"></div>
         <div class="btn" id="midiInd" style="display:none" title="MIDI keyboard connected"></div>
         <div class="btn" id="songsBtn">♫ <span class="hideSm">Songs</span></div>
@@ -285,7 +309,13 @@
         <span id="tTime" class="tmono">0:00 / 0:00</span>
         <div class="tgroup" title="Tempo"><span class="tlbl">⏩</span><input id="tTempo" type="range" min="40" max="150" value="100"><span id="tTempoV" class="tmono">100%</span></div>
         <div class="tgroup" title="Transpose (semitones)"><span class="tlbl">♭♯</span><div class="tbtn sm" id="tTrDown">−</div><span id="tTrV" class="tmono">0</span><div class="tbtn sm" id="tTrUp">+</div></div>
-        <div class="tbtn" id="tLoop" title="Loop">🔁</div>
+        <div class="tbtn" id="tLoop" title="Loop — whole song, or set an A–B bar range">🔁</div>
+        <div class="tgroup" id="tLoopAB" title="Loop range — set A and B at the playhead (snaps to the bar)">
+            <div class="tbtn sm" id="tSetA" title="Set the loop start (A) at the playhead">A</div>
+            <div class="tbtn sm" id="tSetB" title="Set the loop end (B) at the playhead">B</div>
+            <span id="tLoopV" class="tmono">All</span>
+            <div class="tbtn sm" id="tLoopClear" title="Clear the A–B range — loop the whole song">✕</div>
+        </div>
         <div class="tgroup" id="tParts" title="Parts — switch a part off to play that line yourself">
             <span class="tlbl hideSm">Parts</span>
             <div class="tpart on" id="tPartPiano" title="Piano part is on — click to mute it">🎹<span class="hideSm">Piano</span></div>
@@ -295,27 +325,59 @@
     </div>
 
     <div id="stage">
-        <div id="brand">IMPALA-STYLE&nbsp;&nbsp;WEB&nbsp;PIANO</div>
+        <div id="brand">PIANO&nbsp;&nbsp;PRACTICE</div>
         <div id="felt"></div>
         <canvas id="fall"></canvas>
         <div id="keys"></div>
         <div id="hint">Computer keys: A S D F G H J K L&nbsp;&nbsp;·&nbsp;&nbsp;W E T Y U (sharps)&nbsp;&nbsp;·&nbsp;&nbsp;Z / X octave&nbsp;&nbsp;·&nbsp;&nbsp;Space = sustain</div>
     </div>
-</div>
 
-<div id="songsModal">
-    <div id="songsPanel">
-        <h3>♫ Songs</h3>
-        <div class="sub2">Tap to auto-play — then play along on the keys.</div>
-        <div id="songsList"></div>
-        <div class="btn" id="uploadBtn">⬆ Import MIDI / MusicXML…</div>
-        <input id="midiInput" type="file" accept=".mid,.midi,.musicxml,.xml,.mxl,audio/midi,audio/x-midi,application/vnd.recordare.musicxml+xml,application/vnd.recordare.musicxml,application/xml,text/xml" multiple style="display:none">
-        <div class="btn" id="songsClose">Close</div>
+    <!-- The modals live inside #app so that, on a portrait phone, they rotate
+         with the forced-landscape app instead of showing sideways. -->
+    <div id="songsModal" role="dialog" aria-modal="true" aria-labelledby="songsTitle">
+        <div id="songsPanel">
+            <h3 id="songsTitle">♫ Songs</h3>
+            <div class="sub2">Tap to auto-play — then play along on the keys.</div>
+            <div id="songsList"></div>
+            <div class="btn" id="uploadBtn">⬆ Import MIDI / MusicXML…</div>
+            <input id="midiInput" type="file" accept=".mid,.midi,.musicxml,.xml,.mxl,audio/midi,audio/x-midi,application/vnd.recordare.musicxml+xml,application/vnd.recordare.musicxml,application/xml,text/xml" multiple style="display:none">
+            <div class="btn" id="songsClose">Close</div>
+        </div>
+    </div>
+
+    <div id="helpModal" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
+        <div id="helpPanel">
+            <h3 id="helpTitle">Piano Practice</h3>
+            <div id="helpVersion">Version <span id="verLabel">—</span></div>
+            <div id="helpBody">
+                <ul>
+                    <li><b>Play</b> with the mouse, multi-touch, your computer keys (A–L, W–U for sharps, Z/X octave) or a USB MIDI keyboard.</li>
+                    <li><b>🦶 sustain</b> holds notes after you lift the key. Space toggles it too.</li>
+                    <li><b>⏩ tempo</b> slows the song to 40%; <b>🔁 loop</b> repeats the whole song or an A–B range you set at the playhead. The range snaps to the bar in scores that carry bar lines.</li>
+                    <li><b>🎹 / 🎻</b> in the transport mute a part so you can play that line yourself. <b>🎻</b> in the toolbar labels first-position fingering for the song's key.</li>
+                    <li><b>Tap the instrument name</b> to change the sound. <b>⏺</b> records your playing; recordings appear in Songs and download as <code>.mid</code>.</li>
+                    <li>Your own <b>MIDI / MusicXML</b> files play locally — nothing is uploaded.</li>
+                </ul>
+                <div class="sub2">Free &amp; open source (MIT). <a href="https://github.com/hen-ml/piano" target="_blank" rel="noopener">Source</a> · <a href="https://github.com/hen-ml/piano/issues/new/choose" target="_blank" rel="noopener">Report a bug or send feedback</a></div>
+            </div>
+            <div class="btn" id="helpClose">Close</div>
+        </div>
+    </div>
+
+    <div id="toast" role="status" aria-live="polite">
+        <span id="toastMsg"></span>
+        <div class="toastBtn" id="toastAction" style="display:none"></div>
+        <div class="toastBtn" id="toastClose" title="Dismiss">✕</div>
     </div>
 </div>
 
 <script>
 'use strict';
+// Shown in the help panel. Keep in step with CACHE in sw.js — the service
+// worker's cache name carries the same version, so a bump both updates the
+// label and retires the old offline cache (tests/audio.test.cjs checks this).
+const APP_VERSION = 'v0.9.0-beta.1';
+const CACHE_TAG = 'piano-' + APP_VERSION;
 // =============================================================================
 //  AUDIO — sampled acoustic piano and violin, with procedural fallback voices.
 //  Every note is its own voice, so polyphonic input and duets stay independent.
@@ -345,6 +407,10 @@ function makeImpulse(seconds, decay) {          // synthesized room impulse resp
     return buf;
 }
 function ensureAudio() {
+    // iOS routes Web Audio through the ringer channel by default, so the
+    // hardware silent switch mutes playback. 'playback' opts into the media
+    // channel (Safari 16.4+; a no-op elsewhere).
+    try { if (typeof navigator !== 'undefined' && navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) {}
     if (ac) { if (ac.state === 'suspended') ac.resume(); return; }
     ac = new (window.AudioContext || window.webkitAudioContext)();
     comp = ac.createDynamicsCompressor();     // keeps big chords from clipping
@@ -1020,7 +1086,14 @@ const KEYMAP = {   // offset from octave base C
     a: 0, w: 1, s: 2, e: 3, d: 4, f: 5, t: 6, g: 7, y: 8, h: 9, u: 10, j: 11,
     k: 12, o: 13, l: 14, p: 15, ';': 16,
 };
-const downKeys = new Set();
+// key -> the midi note it actually struck. Remembering the pitch (rather than
+// recomputing it from the current octave on keyup) means changing octave with a
+// key still held releases the note you hear, not a different one.
+const downKeys = new Map();
+function releaseComputerKeys() {
+    for (const midi of downKeys.values()) noteOff(midi);
+    downKeys.clear();
+}
 window.addEventListener('keydown', e => {
     if (e.repeat) return;
     const k = e.key.toLowerCase();
@@ -1028,17 +1101,31 @@ window.addEventListener('keydown', e => {
     if (k === 'z') { shiftOctave(-1); return; }
     if (k === 'x') { shiftOctave(1); return; }
     if (k in KEYMAP && !downKeys.has(k)) {
-        downKeys.add(k);
         const midi = 12 * (kbOctave + 1) + KEYMAP[k];
+        downKeys.set(k, midi);
         pressNote(midi, 1);
         e.preventDefault();
     }
 });
 window.addEventListener('keyup', e => {
     const k = e.key.toLowerCase();
-    if (k in KEYMAP && downKeys.has(k)) {
+    const midi = downKeys.get(k);
+    if (midi != null) {
         downKeys.delete(k);
-        noteOff(12 * (kbOctave + 1) + KEYMAP[k]);
+        noteOff(midi);
+    }
+});
+// alt-tab / screen lock never delivers the keyup events, so release everything
+window.addEventListener('blur', releaseComputerKeys);
+// Leaving the tab (or locking the phone) pauses the song rather than letting the
+// clock run on in the background, and coming back resumes where it left off.
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') {
+        releaseComputerKeys();
+        if (songPlaying && !songPaused) { autoPaused = true; pauseSong(); }
+    } else if (autoPaused) {
+        autoPaused = false;
+        if (songPlaying && songPaused) resumeSong();
     }
 });
 function shiftOctave(d) {
@@ -1099,14 +1186,59 @@ document.getElementById('instrBtn').addEventListener('click', () => {
     document.getElementById('instrName').textContent = INSTRUMENTS[instrument].name;
     if (songPlaying) { songPrefetchIdx = songIdx; prefetchSongSamples(songTimeNow()); }
 });
-document.getElementById('gear').addEventListener('click', () => {
-    alert('🎹 Web Piano\n\n• Play with mouse, multi-touch, or your computer keyboard\n• Polyphonic: press many keys at once for chords\n• Sustain pedal 🦶 (Space) holds notes\n• Z / X shift the keyboard octave\n• In a song, 🎹 / 🎻 in the transport switch the piano or violin part off so you can play that line yourself\n• 🎻 fingering follows the song\'s key — override it in the key box\n• Tap the instrument name to change the sound\n\nFree & open source (MIT) — github.com/hen-ml/piano');
+// ---------------------------------------------------------------------------
+//  Small UI pieces shared by the modals and the toast
+// ---------------------------------------------------------------------------
+const modalIds = ['songsModal', 'helpModal'];
+function closeModals() {
+    for (const id of modalIds) document.getElementById(id).classList.remove('open');
+}
+function anyModalOpen() {
+    return modalIds.some(id => document.getElementById(id).classList.contains('open'));
+}
+function openHelp() {
+    document.getElementById('verLabel').textContent = APP_VERSION;
+    document.getElementById('helpModal').classList.add('open');
+}
+function closeHelp() { document.getElementById('helpModal').classList.remove('open'); }
+document.getElementById('verLabel').textContent = APP_VERSION;
+document.getElementById('gear').addEventListener('click', () => openHelp());
+document.getElementById('helpClose').addEventListener('click', closeHelp);
+
+let toastTimer = 0, toastActionFn = null;
+function showToast(msg, actionLabel, action, ms) {
+    document.getElementById('toastMsg').textContent = msg;
+    const btn = document.getElementById('toastAction');
+    toastActionFn = action || null;
+    if (action && actionLabel) { btn.textContent = actionLabel; btn.style.display = ''; }
+    else btn.style.display = 'none';
+    document.getElementById('toast').classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = ms === 0 ? 0 : setTimeout(hideToast, ms || 8000);
+}
+function hideToast() {
+    clearTimeout(toastTimer); toastTimer = 0; toastActionFn = null;
+    document.getElementById('toast').classList.remove('show');
+}
+document.getElementById('toastAction').addEventListener('click', () => {
+    const fn = toastActionFn; hideToast(); if (fn) fn();
 });
-document.getElementById('segChord').addEventListener('click', () => {
-    // quick demo: play a C major chord so you can hear polyphony
-    ensureAudio();
-    [60, 64, 67, 72].forEach(m => { pressNote(m, 1); });
-    setTimeout(() => [60, 64, 67, 72].forEach(m => { heldPhysically.delete(m); if (!sustain) releaseVoice(m, false); lightKey(m, false); }), 600);
+document.getElementById('toastClose').addEventListener('click', hideToast);
+// An uncaught error should not be a silent dead button: offer to report it,
+// once per visit so a repeating error doesn't bury the app in toasts.
+let errorReported = false;
+function offerErrorReport(msg) {
+    if (errorReported) return;
+    errorReported = true;
+    showToast('Something went wrong: ' + msg, 'Report', () =>
+        window.open('https://github.com/hen-ml/piano/issues/new/choose', '_blank', 'noopener'), 15000);
+}
+window.addEventListener('error', e => { if (e && e.message) offerErrorReport(e.message); });
+window.addEventListener('unhandledrejection', () => offerErrorReport('an operation failed'));
+
+// Escape closes whichever panel is open
+window.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && anyModalOpen()) { e.preventDefault(); closeModals(); }
 });
 
 // unlock audio on first gesture
@@ -1128,11 +1260,13 @@ window.addEventListener('wheel', e => { if (e.ctrlKey) e.preventDefault(); }, { 
 window.addEventListener('keydown', e => {
     if ((e.ctrlKey || e.metaKey) && ['+', '-', '=', '0'].includes(e.key)) e.preventDefault();
 });
-// double-tap zoom (iOS ignores user-scalable=no)
+// double-tap zoom (iOS ignores user-scalable=no). Only the keyboard stage needs
+// this guard — doing it document-wide swallowed the second of two quick taps on
+// the transpose +/- and on every button.
 let lastTap = 0;
-document.addEventListener('touchend', e => {
+stage.addEventListener('touchend', e => {
     const now = Date.now();
-    if (now - lastTap < 350) e.preventDefault();
+    if (now - lastTap < 350 && e.touches.length === 0) e.preventDefault();
     lastTap = now;
 }, { passive: false });
 
@@ -1252,6 +1386,11 @@ let songRate = 1;               // 0.40 .. 1.50 (tempo scale)
 let songTranspose = 0;          // semitones
 let songLoop = false;
 let songPaused = false;
+let loopA = 0, loopB = 0;       // A–B repeat range in ms (0/0 = the whole song)
+let songBars = null;            // measure starts in ms, when the score carries bar lines
+let songOnsets = null;          // sorted note starts in ms, for scores that don't
+let lastTickAt = 0;             // performance.now() at the previous song tick
+let autoPaused = false;         // we paused for a hidden tab, so resume on return
 let songEvents = [];            // normalized [t,midi,dur,vel,k] for the loaded song
 // Part mutes: switch the piano (or the violin) off while the transport keeps
 // running, so you can play that line yourself against the other one. This is a
@@ -1391,9 +1530,52 @@ function prefetchSongSamples(t) {
         else if (instrument === 'grand') requestSample('piano', midi);
     }
 }
+// ---- A–B repeat range ----
+// A bar is the natural unit for practising, so setting A or B snaps to the
+// nearest measure when the score has them (MusicXML <measure>, MIDI time
+// signatures) and to the nearest note attack otherwise (built-in songs,
+// recordings). A and B are plain song-time positions in ms.
+const loopRangeSet = () => songLoop && loopB - loopA > 20;
+function loopPoints() {
+    const pts = [0, songDur];
+    if (songBars && songBars.length) pts.push(...songBars);
+    else if (songOnsets) pts.push(...songOnsets);
+    return pts.filter(p => p >= 0 && p <= songDur).sort((a, b) => a - b);
+}
+function snapToGrid(t, points) {
+    t = Math.max(0, t);
+    let best = null, dist = Infinity;
+    for (const p of points) {
+        const d = Math.abs(p - t);
+        if (d < dist) { dist = d; best = p; }
+    }
+    return best == null ? t : best;      // no grid: leave the playhead alone
+}
+function snapPlayhead() { return snapToGrid(songPaused ? clkOff0 : songTimeNow(), loopPoints()); }
+function setLoopA() {
+    if (!songPlaying) return;
+    loopA = snapPlayhead();
+    if (loopB <= loopA + 20) loopB = songDur;    // A past B: extend to the end
+    updateTransportUI();
+}
+function setLoopB() {
+    if (!songPlaying) return;
+    loopB = snapPlayhead();
+    if (loopB <= loopA + 20) loopA = 0;          // B before A: start from the top
+    updateTransportUI();
+}
+function clearLoopRange() { loopA = 0; loopB = 0; updateTransportUI(); }
+
 function songTickFn() {
     if (!songPlaying || songPaused) return;
+    const now = performance.now();
     const t = songTimeNow();
+    // A screen lock, an app switch or a throttled tab leaves the 20 ms tick
+    // asleep; on the next tick the clock has jumped and every missed strike
+    // would fire in one burst. Jump the clock instead of catching up.
+    if (lastTickAt && now - lastTickAt > 250) { seekTo(Math.min(t, songDur)); return; }
+    lastTickAt = now;
+    if (loopRangeSet() && t >= loopB) { seekTo(loopA); return; }
     prefetchSongSamples(t);
     while (songIdx < songStrikes.length && songStrikes[songIdx][0] <= t) {
         const [st, pitch, dur, gain, part] = songStrikes[songIdx++];
@@ -1404,13 +1586,17 @@ function songTickFn() {
         if (v.lit && t >= v.litUntil) { lightKey(v.midi, false); v.lit = false; }
         if (!v.sounding && !v.lit) songLive.delete(key);
     }
-    if (songIdx >= songStrikes.length && songLive.size === 0 && t > songDur + 200) {
-        if (songLoop) seekTo(0); else stopSong();
+    // Wait for the last chord to ring out — but a hold voice (organ, synth)
+    // never releases on its own, and must not keep the song from ending.
+    const stillRinging = [...songLive.values()].some(v => v.sounding && v.soundUntil < 1e9);
+    if (songIdx >= songStrikes.length && !stillRinging && t > songDur + 200) {
+        if (songLoop) seekTo(loopRangeSet() ? loopA : 0); else endSong();
     }
 }
 function seekTo(t) {
     silenceLive();
     clkOff0 = t; clkPerf0 = performance.now();
+    lastTickAt = clkPerf0;
     let lo = 0, hi = songStrikes.length;              // first strike after t
     while (lo < hi) { const mid = (lo + hi) >> 1; if (songStrikes[mid][0] <= t) lo = mid + 1; else hi = mid; }
     songIdx = lo;
@@ -1434,6 +1620,11 @@ function playFrom(id, offset) {
             .map((e, i) => [e[0], e[1], e[2], Math.min(1, (e[3] / 104) * w[i]), e[5] || ''])
             .sort((a, b) => a[0] - b[0]);
         songDur = songEvents.reduce((a, e) => Math.max(a, e[0] + e[2]), 0);
+        // Bar lines from the score (MusicXML measures, MIDI time signatures) if
+        // it has them; otherwise the A–B buttons snap to the nearest note.
+        songBars = (s.bars && s.bars.length ? s.bars : songEvents.bars) || null;
+        songOnsets = [...new Set(songStrikes.map(s => s[0]))].sort((a, b) => a - b);
+        loopA = 0; loopB = 0;
         songLoadedId = id;
         // a declared key (built-in, or the file's key signature) wins; otherwise
         // guess from the notes. The fingering chart follows whichever it is.
@@ -1459,7 +1650,32 @@ function pauseSong() {
     silenceLive();
     updateTransportUI();
 }
-function resumeSong() { if (songPlaying && songPaused) { songPaused = false; seekTo(clkOff0); } }
+function resumeSong() {
+    if (!songPlaying || !songPaused) return;
+    songPaused = false;
+    // after the song has ended, ▶ replays it from the top
+    seekTo(clkOff0 >= songDur - 1 ? 0 : clkOff0);
+    startFall();
+    updateTransportUI();
+}
+// End of song: stop the clock at the last bar but leave the transport up, so
+// ▶ replays and the seek slider still works. Clearing the song is ⏹'s job.
+function endSong() {
+    if (!songPlaying) return;
+    clkOff0 = songDur;
+    songPaused = true;
+    songIdx = songStrikes.length;
+    // let decaying notes finish their own envelope, but cut a hold voice —
+    // an organ would otherwise drone until the next song
+    for (const v of songLive.values()) {
+        if (v.sounding && v.soundUntil >= 1e9) releaseVoice(v.id || v.midi, false);
+        if (v.lit) lightKey(v.midi, false);
+    }
+    songLive.clear();
+    stopFall();
+    updateTransportUI();
+    renderSongs();
+}
 function seekSong(frac) {
     if (!songPlaying) return;
     const off = Math.max(0, Math.min(songDur, frac * songDur));
@@ -1499,7 +1715,15 @@ function showTransport(name) { T('transport').classList.remove('hidden'); T('tNa
 function hideTransport() { T('transport').classList.add('hidden'); relayout(); }
 function updateTransportUI() {
     T('tPlay').textContent = songPaused ? '▶' : '⏸';
+    T('tPlay').title = songPaused ? 'Play' : 'Pause';
     T('tLoop').classList.toggle('on', songLoop);
+    // the A–B controls only exist while looping — otherwise they'd be dead buttons
+    T('tLoopAB').classList.toggle('on', songLoop);
+    const ranged = songLoop && loopB - loopA > 20;
+    T('tSetA').classList.toggle('set', ranged);
+    T('tSetB').classList.toggle('set', ranged);
+    T('tLoopClear').classList.toggle('off', !ranged);
+    T('tLoopV').textContent = ranged ? fmtT(loopA) + '–' + fmtT(loopB) : 'All';
     T('tTempoV').textContent = Math.round(songRate * 100) + '%';
     T('tTempo').value = Math.round(songRate * 100);
     T('tTrV').textContent = (songTranspose > 0 ? '+' : '') + songTranspose;
@@ -1555,6 +1779,9 @@ T('tPartViolin').addEventListener('click', () => togglePart('violin'));
 T('tPlay').addEventListener('click', () => songPaused ? resumeSong() : pauseSong());
 T('tStop').addEventListener('click', stopSong);
 T('tLoop').addEventListener('click', () => { songLoop = !songLoop; updateTransportUI(); });
+T('tSetA').addEventListener('click', setLoopA);
+T('tSetB').addEventListener('click', setLoopB);
+T('tLoopClear').addEventListener('click', clearLoopRange);
 T('tSeek').addEventListener('input', e => { seeking = true; T('tTime').textContent = fmtT(e.target.value / 1000 * songDur) + ' / ' + fmtT(songDur); });
 T('tSeek').addEventListener('change', e => { seeking = false; seekSong(e.target.value / 1000); });
 T('tTempo').addEventListener('input', e => setSongRate(e.target.value / 100));
@@ -1678,6 +1905,10 @@ function parseMIDI(buf) {
             const hi = ev & 0xf0;
             if (ev === 0xff) { const type = u8(); const l = vlq();
                 if (type === 0x51) evs.push({ tick, seq: seq++, kind: 'tempo', tempo: (dv.getUint8(p) << 16) | (dv.getUint8(p + 1) << 8) | dv.getUint8(p + 2) });
+                else if (type === 0x58 && l >= 2) {               // FF 58: time signature (numerator, 2^denominator)
+                    const num = dv.getUint8(p), den = 1 << dv.getUint8(p + 1);
+                    evs.push({ tick, seq: seq++, kind: 'timesig', num, den });
+                }
                 else if (type === 0x59 && l >= 2 && !midiKey)    // FF 59: key signature, sf + minor flag
                     midiKey = keyFromFifths(dv.getInt8(p), dv.getUint8(p + 1) ? 'minor' : 'major');
                 p += l; status = 0;
@@ -1714,7 +1945,38 @@ function parseMIDI(buf) {
     for (const [s, e, midi, vel] of arr) { const k = occ[midi] | 0; occ[midi] = k + 1; out.push([Math.round(s * 1000), midi, Math.round((e - s) * 1000), vel, k]); }
     out.pedal = pedal;          // also returned as a property so callers can ignore it
     out.key = midiKey;          // null when the file has no key-signature event
+    // Bar lines for the A–B loop, when the file states its time signatures.
+    const sigs = evs.filter(e => e.kind === 'timesig');
+    if (sigs.length) {
+        const tempoEvs = evs.filter(e => e.kind === 'tempo').map(e => [e.tick, e.tempo]);
+        if (!tempoEvs.length || tempoEvs[0][0] > 0) tempoEvs.unshift([0, 500000]);
+        const tickToSec = tk => {
+            let sec = 0, last = 0, tempo = 500000;
+            for (const [t, tp] of tempoEvs) { if (t >= tk) break; sec += (t - last) * (tempo / 1e6) / tpb; last = t; tempo = tp; }
+            return sec + (tk - last) * (tempo / 1e6) / tpb;
+        };
+        const endTick = evs.reduce((a, e) => Math.max(a, e.tick), 0);
+        out.bars = midiBarTicks(sigs, endTick, tpb).map(t => Math.round(tickToSec(t) * 1000));
+    }
     return out;
+}
+// Bar starts in ticks from a MIDI time-signature map (FF 58). The signature in
+// force at a bar line sets how long the next bar is; a file with no time
+// signature gets no bar lines at all, and the caller falls back to note onsets.
+function midiBarTicks(timesigs, endTick, tpb) {
+    const sigs = timesigs.slice().sort((a, b) => a.tick - b.tick);
+    const bars = [];
+    let tick = 0, i = 0, num = 4, den = 4;
+    while (tick <= endTick && bars.length < 10000) {
+        while (i < sigs.length && sigs[i].tick <= tick) {
+            if (sigs[i].num > 0) num = sigs[i].num;
+            if (sigs[i].den > 0) den = sigs[i].den;
+            i++;
+        }
+        bars.push(tick);
+        tick += Math.max(1, Math.round(num * tpb * 4 / den));
+    }
+    return bars;
 }
 
 // =============================================================================
@@ -1726,6 +1988,20 @@ function parseMIDI(buf) {
 
 const XML_STEPS = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
 const XML_BEAT_Q = { whole: 4, half: 2, quarter: 1, eighth: 0.5, '16th': 0.25, '32nd': 0.125, '64th': 0.0625 };
+// Dynamic markings → MIDI velocity. The player already shapes each strike by
+// its role in the texture; this gives the score's mp/ff somewhere to start.
+const XML_DYNAMICS = {
+    ppp: 16, pp: 33, p: 49, mp: 64, mf: 80, f: 96, ff: 112, fff: 127,
+    fp: 96, sf: 96, sfz: 96, fz: 96, rf: 96, rfz: 96,
+};
+const dynamicsVelocity = el => {
+    if (!el) return 0;
+    for (const m of xmlElements(el)) {
+        const v = XML_DYNAMICS[(m.localName || m.nodeName).toLowerCase()];
+        if (v) return v;
+    }
+    return 0;
+};
 
 function xmlChild(el, name) {
     if (!el) return null;
@@ -1781,6 +2057,7 @@ function parseMusicXML(text) {
     const tempoMap = new Map();   // quarter-note position -> BPM
     const pedalQ = [];            // [quarter-note position, down]
     const rawNotes = [];          // { start, dur, midi, voice, tieStart, tieStop, part, role }
+    const barQ = [];              // measure starts, in quarter notes (from the first part)
     let scoreKey = null;          // first <key><fifths> + <mode> in the score
 
     for (let pi = 0; pi < parts.length; pi++) {
@@ -1789,9 +2066,11 @@ function parseMusicXML(text) {
         const vnPart = vnById.get(parts[pi].getAttribute('id')) === true;
         let cursor = 0;           // quarter notes from the start of the part
         let lastStart = 0;
+        let dynVel = 0;           // current <dynamics> velocity; 0 = score says nothing
 
         for (const measure of xmlChildren(parts[pi], 'measure')) {
             const measureStart = cursor;
+            if (pi === 0) barQ.push(measureStart);   // bar lines drive the A–B loop
             let maxCursor = cursor;
 
             for (const el of xmlElements(measure)) {
@@ -1808,6 +2087,14 @@ function parseMusicXML(text) {
                         scoreKey = keyFromFifths(fifths, xmlText(xmlChild(keyEl, 'mode')).toLowerCase());
                 } else if (name === 'direction' || name === 'sound') {
                     let bpm = 0;
+                    let sndDyn = null;
+                    if (name === 'sound') sndDyn = el.getAttribute('dynamics');
+                    else { const sndEl = xmlChild(el, 'sound'); if (sndEl) sndDyn = sndEl.getAttribute('dynamics'); }
+                    if (sndDyn != null && sndDyn !== '' && isFinite(+sndDyn))
+                        // MusicXML's dynamics value maps to MIDI velocity at 0.9×,
+                        // which makes MuseScore's 54.44 / 83.33 / 106.67 exactly
+                        // p / mf / f (49 / 75 / 96).
+                        dynVel = Math.max(1, Math.min(127, Math.round(+sndDyn * 0.9)));
                     if (name === 'sound') {
                         if (el.getAttribute('tempo')) bpm = +el.getAttribute('tempo');
                     } else {
@@ -1821,6 +2108,8 @@ function parseMusicXML(text) {
                                 const q = (XML_BEAT_Q[bu] || 1) * (xmlChild(met, 'beat-unit-dot') ? 1.5 : 1);
                                 if (pm > 0) bpm = pm * q;
                             }
+                            const dyn = dynamicsVelocity(xmlChild(dt, 'dynamics'));
+                            if (dyn) dynVel = dyn;
                             const ped = xmlChild(dt, 'pedal');
                             if (ped) {
                                 const t = ped.getAttribute('type');
@@ -1869,6 +2158,7 @@ function parseMusicXML(text) {
                     rawNotes.push({
                         start, dur: durQ, midi,
                         voice: xmlText(xmlChild(el, 'voice')) || '1',
+                        vel: dynVel,
                         tieStart, tieStop, part: pi,
                         // tag from the score: violin parts are the bowed voice;
                         // a grand staff tells the hands apart
@@ -1909,7 +2199,7 @@ function parseMusicXML(text) {
                 continue;
             }
         }
-        const note = { start: n.start, dur: n.dur, midi: n.midi, role: n.role };
+        const note = { start: n.start, dur: n.dur, midi: n.midi, vel: n.vel, role: n.role };
         merged.push(note);
         if (n.tieStart) open.set(key, note); else open.delete(key);
     }
@@ -1920,7 +2210,7 @@ function parseMusicXML(text) {
         const k = occ[n.midi] | 0; occ[n.midi] = k + 1;
         // a note keeps whatever the score told us: 'vn', 'rh', 'lh' — or
         // nothing, which falls back to the middle-C split at draw time
-        const ev = [Math.round(s), n.midi, Math.max(1, Math.round(e - s)), 90, k];
+        const ev = [Math.round(s), n.midi, Math.max(1, Math.round(e - s)), n.vel || 90, k];
         if (n.role) ev.push(n.role);
         events.push(ev);
     }
@@ -1949,6 +2239,8 @@ function parseMusicXML(text) {
     out.title = title;
     out.composer = composer;
     out.key = scoreKey;        // null when the score states no key signature
+    // measure starts in ms — what the A–B loop snaps to
+    out.bars = barQ.map(q => Math.round(qToMs(q)));
     out.kind = 'musicxml';
     return out;
 }
@@ -2054,21 +2346,21 @@ async function parseMusicFile(file) {
 const USER_KEY = 'piano_user_songs';
 function loadUserSongs() {
     try { const raw = localStorage.getItem(USER_KEY); if (!raw) return;
-        for (const u of JSON.parse(raw)) SONGS[u.id] = { name: u.name, by: u.by || 'your MIDI', events: u.events, pedal: u.pedal || [], key: u.key || null, user: true };
+        for (const u of JSON.parse(raw)) SONGS[u.id] = { name: u.name, by: u.by || 'your MIDI', events: u.events, pedal: u.pedal || [], key: u.key || null, bars: u.bars || null, user: true };
     } catch (e) {}
 }
 function saveUserSongs() {
-    const arr = Object.entries(SONGS).filter(([, s]) => s.user).map(([id, s]) => ({ id, name: s.name, by: s.by, events: s.events, pedal: s.pedal || [], key: s.key || null }));
+    const arr = Object.entries(SONGS).filter(([, s]) => s.user).map(([id, s]) => ({ id, name: s.name, by: s.by, events: s.events, pedal: s.pedal || [], key: s.key || null, bars: s.bars || null }));
     try { localStorage.setItem(USER_KEY, JSON.stringify(arr)); return true; }
     catch (e) { return false; }
 }
 function addUserMIDI(name, events, by, pedal) {
     const id = 'u' + Date.now() + '_' + Math.floor(performance.now());
-    // array properties (like a parser's .key) don't survive localStorage, so
-    // keep the key on the song record — the file's signature if it had one,
-    // otherwise a guess from the notes.
+    // array properties (like a parser's .key and .bars) don't survive
+    // localStorage, so keep them on the song record — the file's key signature
+    // if it had one, otherwise a guess from the notes.
     const key = events.key || detectKey(events);
-    SONGS[id] = { name, by: by || 'your MIDI', events, pedal: pedal || [], key, user: true };
+    SONGS[id] = { name, by: by || 'your MIDI', events, pedal: pedal || [], key, bars: events.bars || null, user: true };
     const saved = saveUserSongs();
     renderSongs();
     return { id, saved };
@@ -2092,23 +2384,44 @@ function renderSongs() {
             row.appendChild(dl);
             const x = document.createElement('span');
             x.className = 'del'; x.textContent = '✕'; x.title = 'Remove';
-            x.addEventListener('click', ev => {
-                ev.stopPropagation();
-                if (songPlaying === id) stopSong();
-                delete SONGS[id]; saveUserSongs(); renderSongs();
-            });
+            x.addEventListener('click', ev => { ev.stopPropagation(); removeUserSong(id); });
             row.appendChild(x);
         }
         list.appendChild(row);
     }
 }
-document.getElementById('songsBtn').addEventListener('click', () => {
+// Deleting an imported song is one mis-tap away from losing work, so it gets an
+// undo instead of a modal confirm — and the song comes back where it was.
+function removeUserSong(id) {
+    const s = SONGS[id];
+    if (!s) return;
+    if (songPlaying === id) stopSong();
+    const idx = Object.keys(SONGS).indexOf(id);
+    delete SONGS[id];
+    saveUserSongs(); renderSongs();
+    showToast('Removed “' + s.name + '”', 'Undo', () => {
+        const rest = Object.keys(SONGS).filter(k => k !== id);
+        rest.splice(Math.min(idx, rest.length), 0, id);
+        const restored = {};
+        for (const k of rest) restored[k] = k === id ? s : SONGS[k];
+        for (const k of Object.keys(SONGS)) delete SONGS[k];
+        Object.assign(SONGS, restored);
+        saveUserSongs(); renderSongs();
+    });
+}
+const songsModal = document.getElementById('songsModal');
+function openSongs() {
     ensureAudio();
     renderSongs();
-    document.getElementById('songsModal').classList.add('open');
-});
-document.getElementById('songsClose').addEventListener('click', () => {
-    document.getElementById('songsModal').classList.remove('open');
+    songsModal.classList.add('open');
+}
+function closeSongs() { songsModal.classList.remove('open'); }
+document.getElementById('songsBtn').addEventListener('click', openSongs);
+document.getElementById('songsClose').addEventListener('click', closeSongs);
+// tapping the dimmed backdrop (not the panel) closes, as does Escape
+songsModal.addEventListener('click', e => { if (e.target === songsModal) closeSongs(); });
+document.getElementById('helpModal').addEventListener('click', e => {
+    if (e.target === document.getElementById('helpModal')) closeHelp();
 });
 const midiInput = document.getElementById('midiInput');
 document.getElementById('uploadBtn').addEventListener('click', () => midiInput.click());
@@ -2166,7 +2479,7 @@ recBtn.addEventListener('click', () => {
         const d = new Date();
         const nm = 'Recording ' + d.getHours() + ':' + String(d.getMinutes()).padStart(2, '0');
         addUserMIDI(nm, ev, 'recorded');
-        document.getElementById('songsModal').classList.add('open'); renderSongs();
+        openSongs();
     }
 });
 
@@ -2218,14 +2531,39 @@ function onMIDIMessage(e) {
     else if (cmd === 0xb0 && d1 === 64) setSustain(d2 >= 64);   // sustain pedal
 }
 function initMIDI() {
-    if (midiAccess || !navigator.requestMIDIAccess) return;
-    navigator.requestMIDIAccess().then(acc => {
+    if (midiAccess) return Promise.resolve(midiAccess);
+    if (!navigator.requestMIDIAccess) return Promise.reject(new Error('this browser has no Web MIDI'));
+    return navigator.requestMIDIAccess().then(acc => {
         midiAccess = acc;
         const bind = () => { for (const inp of acc.inputs.values()) inp.onmidimessage = onMIDIMessage; updateMidiInd(); };
         bind(); acc.onstatechange = bind;
-    }).catch(() => {});
+        showMidiBtn(false);
+        return acc;
+    });
 }
-['pointerdown', 'keydown', 'touchstart'].forEach(ev => window.addEventListener(ev, initMIDI, { once: true }));
+function showMidiBtn(show) {
+    document.getElementById('midiBtn').style.display = show ? '' : 'none';
+}
+document.getElementById('midiBtn').addEventListener('click', () => {
+    ensureAudio();
+    initMIDI().then(() => showToast('MIDI keyboard connected.')).catch(err => {
+        showToast('Couldn’t connect a MIDI keyboard — ' + (err && err.message ? err.message : 'check the browser permission') + '.');
+    });
+});
+// Chrome prompts for MIDI access on request; asking on the first tap anywhere
+// is startling, so only auto-connect when the user has already granted it and
+// otherwise offer a button. (Browsers without the Permissions API keep the old
+// behaviour: no prompt until they press the button, then a normal prompt.)
+async function maybeAutoConnectMidi() {
+    if (!navigator.requestMIDIAccess) return;
+    let state = 'prompt';
+    try {
+        if (navigator.permissions && navigator.permissions.query) state = (await navigator.permissions.query({ name: 'midi' })).state;
+    } catch (e) { state = 'prompt'; }   // some browsers reject the 'midi' name
+    if (state === 'granted') initMIDI().catch(() => showMidiBtn(true));
+    else if (state !== 'denied') showMidiBtn(true);
+}
+['pointerdown', 'keydown', 'touchstart'].forEach(ev => window.addEventListener(ev, maybeAutoConnectMidi, { once: true }));
 
 // test hook
 window.PIANO = {
@@ -2238,6 +2576,12 @@ window.PIANO = {
     playing: () => songPlaying,
     parseMIDI, parseMusicXML, addUserMIDI, eventsToMIDI, exportSongMidi,
     setRate: setSongRate, setTranspose: setSongTranspose, seek: seekSong,
+    version: () => APP_VERSION,
+    loop: () => ({ a: loopA, b: loopB, on: songLoop }),
+    setLoopA, setLoopB, clearLoopRange: () => clearLoopRange(),
+    toggleLoop: () => { songLoop = !songLoop; updateTransportUI(); },
+    snapToGrid, loopPoints, bars: () => songBars,
+    barTicks: midiBarTicks,
     toggleRecord: () => recBtn.click(),
     toggleViolin: () => document.getElementById('violinBtn').click(),
     violinFinger, violin: () => violinMode,
@@ -2264,7 +2608,19 @@ fitRange();
 warmSamples(); // load common recordings before the first note, without unlocking audio
 
 // offline: once visited, the app loads with no network at all (see sw.js)
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+if ('serviceWorker' in navigator) {
+    // The worker serves cache first, so a fix reaches an open tab one load
+    // late. When a new worker takes over, say so instead of leaving the tab
+    // running last release's code.
+    let hadController = !!navigator.serviceWorker.controller;
+    if (navigator.serviceWorker.addEventListener) {
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+            if (hadController) showToast('A new version is ready.', 'Reload', () => location.reload(), 0);
+            hadController = true;
+        });
+    }
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+}
 </script>
 </body>
 </html>

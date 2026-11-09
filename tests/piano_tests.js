@@ -309,10 +309,72 @@
                 a.equal(out[0][1], 60);
                 a.equal(out[0][2], 1000); // tied: two quarters = 1000 ms
             }));
+            results.push(check('parseMusicXML: dynamics set the note velocity', function (a) {
+                const xml = `<?xml version="1.0"?>
+<score-partwise version="4.0">
+  <part-list><score-part id="P1"><part-name>Piano</part-name></score-part></part-list>
+  <part id="P1">
+    <measure number="1">
+      <attributes><divisions>1</divisions></attributes>
+      <direction><direction-type><dynamics><ff/></dynamics></direction-type></direction>
+      <note><pitch><step>C</step><octave>4</octave></pitch><duration>1</duration></note>
+      <sound dynamics="50"/>
+      <note><pitch><step>D</step><octave>4</octave></pitch><duration>1</duration></note>
+      <note><pitch><step>E</step><octave>4</octave></pitch><duration>1</duration></note>
+    </measure>
+  </part>
+</score-partwise>`;
+                const out = P.parseMusicXML(xml);
+                a.equal(out[0][3], 112);   // ff
+                a.equal(out[1][3], 45);    // <sound dynamics="50"> → 0.9 × 50
+                a.equal(out[2][3], 45);    // and it holds for the notes that follow
+            }));
             results.push(check('parseMusicXML: rejects bad input', function (a) {
                 a.throws(function () { P.parseMusicXML('not xml at all'); }, 'garbage throws');
                 a.throws(function () { P.parseMusicXML('<score-timewise/>'); }, 'timewise throws');
                 a.throws(function () { P.parseMusicXML('<nope/>'); }, 'non-score throws');
+            }));
+
+            // ---------- A–B loop: bar lines and snapping ----------
+            results.push(check('parseMusicXML: measure starts for the loop range', function (a) {
+                const note = '<note><pitch><step>C</step><octave>4</octave></pitch><duration>4</duration></note>';
+                const xml = `<?xml version="1.0"?>
+<score-partwise version="4.0">
+  <part-list><score-part id="P1"><part-name>Piano</part-name></score-part></part-list>
+  <part id="P1">
+    <measure number="1">
+      <attributes><divisions>1</divisions></attributes><sound tempo="120"/>${note}
+    </measure>
+    <measure number="2">${note}</measure>
+    <measure number="3">${note}</measure>
+  </part>
+</score-partwise>`;
+                const out = P.parseMusicXML(xml);
+                // a whole note per bar at 120 BPM: 4 quarters = 2000 ms
+                a.equal(out.bars, [0, 2000, 4000]);
+            }));
+            results.push(check('midiBarTicks: bars follow the time signature', function (a) {
+                // 3/4 at 480 ticks per quarter: 1440 ticks a bar
+                a.equal(P.barTicks([{ tick: 0, num: 3, den: 4 }], 3000, 480), [0, 1440, 2880]);
+                // 4/4 for two bars, then 3/4 from tick 3840
+                a.equal(P.barTicks([{ tick: 0, num: 4, den: 4 }, { tick: 3840, num: 3, den: 4 }], 6000, 480),
+                    [0, 1920, 3840, 5280]);
+            }));
+            results.push(check('parseMIDI: time signature becomes bar lines', function (a) {
+                const bytes = buildMidiFile([
+                    [0, 0xff, 0x58, 0x04, 0x02, 0x02, 0x18, 0x08],   // 2/4
+                    [0, 0x90, 60, 100],
+                    [0x87, 0x40, 0x80, 60, 0],                        // +960 ticks = one bar
+                ]);
+                const out = P.parseMIDI(toBuffer(bytes));
+                a.equal(out.bars, [0, 1000]);   // 960 ticks at 120 BPM
+            }));
+            results.push(check('snapToGrid: nearest bar line, never past the song', function (a) {
+                const bars = [0, 1000, 2000, 3000];
+                a.equal(P.snapToGrid(1150, bars), 1000, 'rounds down to the nearer bar');
+                a.equal(P.snapToGrid(1810, bars), 2000, 'rounds up to the nearer bar');
+                a.equal(P.snapToGrid(-40, bars), 0, 'never before the start');
+                a.equal(P.snapToGrid(1e9, bars), 3000, 'never past the last bar');
             }));
 
             // ---------- built-in songs ----------
