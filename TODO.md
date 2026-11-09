@@ -13,18 +13,42 @@ Review of `main` at 365f6d6 (2026-11-08). Both test suites pass (`node tests/run
 
 ## Sound
 
+### Compared with a real performance (May Song)
+
+May Song was rendered with the real `index.html` code (offline in headless Chrome, all samples loaded), aligned note by note to a phone recording of a real violin & piano performance, and compared over the same 12 bars. The real performance doesn't take the repeat.
+
+| | Real recording | App |
+|---|---|---|
+| Loudness | −17 LUFS | −24 LUFS |
+| Bar-to-bar dynamics | −2.6 to +3.2 dB, following the score's f / mf / p | ±0.5 dB, flat |
+| Tempo | 48–88 bpm per bar, average 71 | fixed 80 |
+| Melody vs piano chords | (reference) | melody 4–5 dB louder |
+| Tone above 500 Hz (vs 250–500 Hz) | (reference) | 5–12 dB brighter; 3–6 dB less below 125 Hz |
+| Final note fades 20 dB in | 3.2 s | 1.3 s |
+| Energy dip between melody notes | −11.7 dB | −10.5 dB (about the same) |
+
+The samples are real instruments and note-to-note articulation is close, so the gap is in performance and room. To close it: *MusicXML dynamics ignored* (the biggest gap), *Violin too loud*, *Overall output is quiet*, *Synthetic reverb* and *No sustain pedal* in the next list, plus the items below.
+
+- [ ] **Keep the piano's right hand when it doubles the violin.** The importer's unison de-dupe gives shared (time, pitch) notes to the violin, so May Song's piano treble staff (44 notes, identical to the violin line) disappears. A real accompanist plays it, and with the violin muted for practice the piano should still carry the tune. Only de-dupe within one instrument.
+- [ ] **Make it sound further away.** Besides a longer, darker reverb (see *Synthetic reverb*), add a gentle high-frequency cut (about −6 dB above 2 kHz) and a little low-end warmth on the master. Part of the recording's darkness is the phone mic, so aim halfway, not a full match.
+- [ ] **Gentle tempo shaping.** Slow 10–15% at phrase ends and about 25% over the last bar instead of a fixed clock. Keep it subtle; some of the real performance's slow bars are stretched long notes, not something to copy.
+- [ ] **Decide May Song's repeat.** The built-in expands the repeat (24 bars, 72 s); the real performance plays the 12 bars once.
+- [ ] **Check in the offline renderer.** A small harness that serves `index.html`, swaps in an `OfflineAudioContext`, steps `songTickFn` every 20 ms with `ctx.suspend()` and posts back a WAV renders a song exactly as the app plays it, faster than real time. Keeping it in `tools/` lets sound changes be measured (loudness, balance, tone, decay) instead of judged once by ear.
+
+### Bundled samples and mix
+
 Measured from the bundled MP3s and an approximate re-render of the built-in songs (same gains, envelopes and voicing as `noteOn`/`violinNoteOn`/`computeVoicing`; leaves out filters, reverb and the compressor). These are numbers, not listening tests; confirm by ear.
 
 What's fine: the recordings are long enough (violin sustains 10–14 s, so slowed-down held notes don't run out), and violin attacks are fast (10–80 ms to full level), so short notes still sound.
 
 - [ ] **Decoded-sample cache is too small for the samples.** All bundled recordings decode to ~201 MB at 48 kHz, but `SAMPLE_CACHE_LIMIT` is 64 MiB, so wide-range songs evict and re-decode recordings mid-song. While one reloads, its notes play from a neighbouring recording or the synth, so the timbre wobbles. Trim the silent tails (bass notes run 20–25 s), store mono where it doesn't matter, or raise the limit on desktop.
 - [ ] **Uneven piano notes.** Strike loudness (RMS of the first 300 ms) of the `Ds5` sample is **~9 dB below** `C5` and `Fs5`, and `Ds5` plays D5, D♯5 and E5, which are common melody notes in D and A major. The `A2`/`A3`/`A4`/`A5` samples are 3.5–5 dB below their neighbours. Add a per-sample gain trim to `SAMPLE_FILES` (normalise to a smooth curve across the keyboard), and add a test for it.
-- [ ] **Violin probably too loud over the piano.** The violin part is louder than the whole piano part by a median **+5 dB** (Long, Long Ago; Mariage d'amour) to **+9–12 dB** (Lightly Row; Jingle Bells). Try pulling the violin down 4–6 dB, or add a violin/piano balance slider.
-- [ ] **Overall output is quiet.** Mix RMS is about **−30 dBFS** (peaks −10 to −16 dBFS) at the default 70% volume, roughly 15 dB below typical music; the compressor (threshold −18 dB) never engages. Likely too quiet on phone speakers. Raise the master gain by about 10 dB and let the compressor/limiter catch peaks.
-- [ ] **No sustain pedal in any built-in song.** All six have `pedal: []`, and the Mariage d'amour score has no pedal markings, so the piano is damped at every written note end. Add an auto-pedal for piano parts without pedal data (e.g. re-pedal on each new bass note or measure).
-- [ ] **MusicXML dynamics ignored.** Every note gets velocity 90 (`parseMusicXML`). The Mariage d'amour score marks mp → ff (14 markings) and it plays flat. Read `<dynamics>` and `<sound dynamics>`.
+- [ ] **Violin too loud over the piano.** The violin part is louder than the whole piano part by a median **+5 dB** (Long, Long Ago; Mariage d'amour) to **+9–12 dB** (Lightly Row; Jingle Bells). Against the real May Song recording, the app's melody is 4–5 dB too loud relative to the piano chords. Pull the violin down about 5 dB (`violinNoteOn` peak 0.27 → ~0.15), or add a violin/piano balance slider.
+- [ ] **Overall output is quiet.** Mix RMS is about **−30 dBFS** (peaks −10 to −16 dBFS) at the default 70% volume, roughly 15 dB below typical music; the compressor (threshold −18 dB) never engages. Likely too quiet on phone speakers. May Song is −24 LUFS in the app against −17 LUFS in a real phone recording of the piece. Raise the master gain by about 7–10 dB and let the compressor/limiter catch peaks.
+- [ ] **No sustain pedal in any built-in song.** All six have `pedal: []`, and the Mariage d'amour score has no pedal markings, so the piano is damped at every written note end. Add an auto-pedal for piano parts without pedal data (e.g. re-pedal on each new bass note or measure), and let the final note ring: in the real May Song recording it takes 3.2 s to fade 20 dB, in the app 1.3 s.
+- [ ] **MusicXML dynamics ignored.** Every note gets velocity 90 (`parseMusicXML`). The Mariage d'amour score marks mp → ff (14 markings) and it plays flat. Read `<dynamics>` and `<sound dynamics>` (MusicXML defines velocity = 0.9 × the `dynamics` value, so May Song's 54 / 83 / 98 become p / mf / f). This is the single biggest gap to the real May Song recording: its bar-to-bar loudness follows the markings (−2.6 to +3.2 dB, quietest at the p in bar 7) while the app stays within ±0.5 dB.
 - [ ] **No violin legato.** 130 slurs in Mariage d'amour are ignored; each violin note restarts its sample, with a fresh bow attack and vibrato. For slurred notes, crossfade (~40 ms) into the next sample, starting past its attack.
-- [ ] **Synthetic reverb.** `makeImpulse` (`index.html:338`) is white noise with a power-law decay and no high-frequency damping, which tends to sound hissy. Lowpass the tail over time, or ship a small licensed room impulse response.
+- [ ] **Synthetic reverb.** `makeImpulse` (`index.html:338`) is white noise with a power-law decay and no high-frequency damping, which tends to sound hissy. Lowpass the tail over time, or ship a small licensed room impulse response, and aim for about a 2.5–3 s decay with more reverb in the mix; the app's final notes die about 2.5× faster than in the real recording.
 - [ ] **One piano velocity layer.** Soft playing is the medium-loud recording turned down and darkened. Known limitation (see `docs/sound-comparison.md`); consider a second layer (e.g. Salamander velocity 4) if size allows.
 - [ ] Minor: violin samples are mono and nothing is panned, so both instruments sit dead centre. A slight pan would help separate them.
 
