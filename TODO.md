@@ -1,6 +1,6 @@
 # Beta release TODO
 
-Review of `main` at 365f6d6 (2026-11-08). All three suites pass (`node tests/run_node.js` 42/42, `node --test tests/audio.test.cjs` 10/10, `node tests/ui_smoke.cjs` 19/19).
+Review of `main` at 365f6d6 (2026-11-08). All three suites pass (`node tests/run_node.js` 43/43, `node --test tests/audio.test.cjs` 10/10, `node tests/ui_smoke.cjs` 19/19).
 
 ## Blockers
 
