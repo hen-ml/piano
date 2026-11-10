@@ -62,7 +62,11 @@ python3 -m http.server 8000
 ```
 then open <http://localhost:8000/tests/runner.html>.
 
-A Node-based equivalent of the same checks is in [`tests/run_node.js`](tests/run_node.js) (`node tests/run_node.js`), for running them without a browser. Both Node suites also run in CI on every push and pull request ([`.github/workflows/tests.yml`](.github/workflows/tests.yml)).
+A Node-based equivalent of the same checks is in [`tests/run_node.js`](tests/run_node.js) (`node tests/run_node.js`), for running them without a browser.
+
+[`tests/ui_smoke.cjs`](tests/ui_smoke.cjs) (`node tests/ui_smoke.cjs`) goes further: it loads the real script against a small fake DOM and fake Web Audio, then drives the interface — opens the help and Songs panels, plays a song, sets and clears an A–B range, runs to the end, deletes and undoes, holds a computer key across an octave shift, and backgrounds the tab. It catches wiring bugs the unit tests can't see.
+
+All three suites run in CI on every push and pull request ([`.github/workflows/tests.yml`](.github/workflows/tests.yml)).
 
 ## How it's built
 

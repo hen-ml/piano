@@ -18,3 +18,5 @@ jobs:
         run: node tests/run_node.js
       - name: Audio loader and sample mapping
         run: node --test tests/audio.test.cjs
+      - name: UI smoke (panels, transport, loop, keyboard, undo)
+        run: node tests/ui_smoke.cjs

@@ -1,6 +1,6 @@
 # Beta release TODO
 
-Review of `main` at 365f6d6 (2026-11-08). Both test suites pass (`node tests/run_node.js` 41/41, `node --test tests/audio.test.cjs` 10/10).
+Review of `main` at 365f6d6 (2026-11-08). All three suites pass (`node tests/run_node.js` 42/42, `node --test tests/audio.test.cjs` 10/10, `node tests/ui_smoke.cjs` 19/19).
 
 ## Blockers
 
@@ -68,7 +68,7 @@ What's fine: the recordings are long enough (violin sustains 10–14 s, so slowe
 - [x] Version string in the UI, tied to `CACHE` in `sw.js`. *(Fixed: `APP_VERSION` shows in the help panel; the cache is named `piano-` + that string and a test fails if they drift.)*
 - [x] Feedback link (GitHub issue template or form) in the help panel; `window.onerror` toast offering "report this". *(Done, with a once-per-visit guard. There is still no issue template in the repo.)*
 - [x] "Update available, reload" toast. *(Fixed: `controllerchange` on the service worker shows a reload toast; the first install is ignored.)*
-- [x] CI: GitHub Action running both Node test suites on PRs. *(`.github/workflows/tests.yml`, on pushes and PRs.)*
+- [x] CI: GitHub Action running the Node test suites on PRs. *(`.github/workflows/tests.yml`, on pushes and PRs; includes a new `tests/ui_smoke.cjs` that drives the real script against a fake DOM.)*
 - [ ] Known-limitations list for testers:
   - MusicXML repeats/endings aren't expanded (likely the top bug report).
   - MIDI import ignores program changes, so MIDI duets get no violin part.
