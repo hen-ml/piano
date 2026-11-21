@@ -1,0 +1,12 @@
+# Piano Practice
+> A free browser practice tool for piano and violin: open a MIDI or MusicXML file, slow it down, loop any bars, and follow falling notes onto the keys. No install, no account. Built-in duets include Lightly Row, May Song, Long Long Ago, Canon in D, Jingle Bells, and Mariage d'amour. Live at https://hen-ml.github.io/piano/ — source at https://github.com/hen-ml/piano
+## Details
+- Slow playback to 40-150% tempo, loop any bar range, mute either part to practice your line against the other
+- USB MIDI keyboard support (Web MIDI), computer keyboard playing, sampled acoustic piano and violin sounds
+- Violin mode labels notes by string and finger (first position)
+- Works offline as an installable PWA; nothing is uploaded
+
+
+
+
+
